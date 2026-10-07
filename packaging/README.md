@@ -210,6 +210,44 @@ a build step: a solicitor should read `LICENCE-TERMS.md`, and somebody should
 confirm the Microsoft Visual C++ runtime redistribution terms cover shipping
 `VCRUNTIME140.dll` the way this installer does.
 
+## Updating the public repository
+
+The public repository has **its own history**, starting from a single squashed
+commit. It shares no ancestry with this one, so the two cannot be merged and
+`main` must never be pushed to it. The local branch `public-release` is that
+history; keep it and do not delete it.
+
+To publish the current state:
+
+```powershell
+git checkout public-release
+git restore --source=main --worktree --staged .   # make the tree match main
+git commit -m "what changed"
+git push public public-release:main
+git checkout main
+```
+
+The `restore` line is what does the work: it makes the public branch's tree
+identical to `main` without bringing any of `main`'s commits with it. The push is
+then an ordinary fast-forward on the public branch.
+
+**Do not run `git push public main:main`.** It asks git to replace the public
+history with this repository's, which git will refuse as a non-fast-forward.
+Refusing is correct -- do not reach for `--force` to get past it, because forcing
+it publishes this repository's entire history rather than the squashed one. If a
+push to `public` is ever rejected, the rejection is the safety net working; stop
+and re-read this section rather than overriding it.
+
+Check what you are about to publish before pushing:
+
+```powershell
+git diff --cached --stat        # on public-release, after the restore
+git log public-release --oneline
+```
+
+The remote named `public` points at the published repository; `origin` points at
+this one. They are deliberately different names so neither is the default.
+
 ## What the installed copy does differently
 
 Installed under `Program Files`, the program's own folder is read-only. The tool
