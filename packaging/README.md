@@ -22,7 +22,9 @@ packaging\
 | A code signing certificate | stops Windows warning users off | see below |
 
 Signing itself needs nothing extra — `Set-AuthenticodeSignature` is part of
-Windows. The Windows SDK and `signtool.exe` are not required.
+Windows. The Windows SDK and `signtool.exe` are not required. That holds for a
+certificate in the Windows certificate store or a `.pfx`; the Azure route below
+is the exception, and would need `signtool.exe` adding.
 
 ## Build it
 
@@ -84,6 +86,18 @@ authority. Remove it afterwards with `.\packaging\New-TestCertificate.ps1 -Remov
 ## Getting a real certificate
 
 This is the part that costs money and takes time, and there is no way around it.
+There are two routes, and they trade money against work.
+
+Whichever you choose, **`AppPublisher` in `installer.iss` must be the same
+organisation name as the certificate subject**, or the installer claims one
+publisher while its signature names another. The spec's `COMPANY` has to match
+too, since it goes into both executables' version resource;
+`TestTheTwoFilesAgree` asserts those two agree with each other, but nothing can
+check them against a certificate you have not bought yet.
+
+### Route 1 — a certificate from a CA
+
+Works with `build.ps1` exactly as it stands.
 
 - **Buy from a public certificate authority** — Sectigo, DigiCert, GlobalSign and
   their resellers. Expect roughly £200–£400 a year for a standard (OV)
@@ -95,12 +109,45 @@ This is the part that costs money and takes time, and there is no way around it.
   Where a token is involved, `Set-AuthenticodeSignature` can still use it once
   its driver exposes the certificate to the Windows certificate store; cloud
   services usually supply their own signing tool instead.
+- **A token ties signing to one machine.** Whichever computer it is plugged into
+  is the only one that can cut a release. Worth knowing before choosing.
 - **Validation takes days.** The CA verifies your business exists — company
   registration, a verifiable phone number, sometimes a legal opinion letter. Sole
   traders can get certificates, but it is more work.
-- **Set the publisher name to match.** `AppPublisher` in `installer.iss` should
-  be the same organisation name as the certificate subject, or the installer will
-  claim one publisher while its signature names another.
+
+### Route 2 — Azure Artifact Signing
+
+Formerly called Trusted Signing. Microsoft holds the key in their own HSM and you
+sign over an API, so **there is no hardware token at all**. About **$9.99 a
+month** on the Basic tier for up to 5,000 signatures, then $0.005 each — roughly
+a quarter of what a CA certificate costs, and you can sign from anywhere.
+
+Two things to check before committing to it:
+
+- **Eligibility.** Individual developers are limited to the USA and Canada.
+  *Organisations* cover a longer list including the UK and the EU, so a company
+  is the route to use rather than a sole trader. There is a long-standing
+  requirement of three or more years of verifiable tax history, and whether it
+  still applies is genuinely unclear — the same Microsoft Q&A thread contains a
+  Microsoft employee saying there is no minimum organisation age and a
+  Microsoft-affiliated answer saying three years, and a vendor blog claims the
+  rule was dropped in 2026. **Check the current prerequisites on Microsoft Learn,
+  and confirm eligibility in the Azure portal before subscribing.** Onboarding
+  either accepts the organisation or it does not, and asking costs nothing. Note
+  the rename: search for "Azure Artifact Signing (formerly Trusted Signing)".
+- **It does not work with this script yet.** `build.ps1` signs with
+  `Set-AuthenticodeSignature`, which was a deliberate choice so that the Windows
+  SDK is not a build dependency. Azure needs `signtool.exe` with their dlib
+  provider, so `-CertificateThumbprint` does not reach it. Adding a second
+  signing path is perhaps forty lines, plus the Windows SDK to install. That cost
+  is the price of the saving; it is not large, but it is not nothing either.
+
+### Which to choose
+
+If a first release is imminent and the budget is there, Route 1 signs today with
+no changes. Otherwise Route 2 is cheaper every year and removes the token, and
+the work it needs is work this project can absorb. Either way, confirm Route 2
+eligibility first — it is free to find out, and the answer decides it.
 
 ### Standard (OV) versus Extended Validation (EV)
 
