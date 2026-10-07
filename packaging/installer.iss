@@ -25,7 +25,7 @@
 ; Publisher must match the subject on your code signing certificate, or the
 ; installer's stated publisher and its signature will disagree. Change this
 ; before a signed build.
-#define AppPublisher   "[LEGAL ENTITY NAME]"
+#define AppPublisher   "scorelogiclab"
 ; No AppPublisherURL / AppSupportURL is set below on purpose: Inno shows them
 ; as the publisher and support links in Add/Remove Programs, and a link that
 ; goes nowhere is worse than none. Add a #define AppUrl and restore those two
