@@ -626,6 +626,15 @@ licensing reasons but for support ones: you cannot inspect a customer's Office
 installation, and an unpatched one fails in ways that look like your bug — this
 machine is the proof. PDFs and images need nothing at all.
 
+**The terms are not in the public repository.** They have to identify the
+contracting party by registered office, so they are issued with each order
+instead. `packaging\not-published.txt` lists what is held back and
+`packaging\publish.ps1` enforces it; `packaging\README.md` under "Publishing"
+explains how a clone without them still builds and tests. The short version: the
+two files are flagged `skipifsourcedoesntexist` in `installer.iss`, `build.ps1`
+writes a placeholder licence page and refuses to sign such a build, and the tests
+that read them skip for exactly the paths on that list.
+
 **The terms exist now.** `LICENCE-TERMS.md` is the licence the program is sold
 under, and `installer.iss` shows it on an accept/decline page that setup will not
 pass without acceptance. It is drafted to the law of England and Wales, as a

@@ -45,3 +45,11 @@ packaging/Output/
 *.p12
 *.cer
 *.crt
+
+# A scratch file holding the entity details, pasted in rather than typed into a
+# chat. Nothing in it belongs in the repository -- the register is the record.
+placeholders.txt
+
+# The literal strings publish.ps1 refuses to publish. Not published itself,
+# for what should be obvious reasons.
+packaging/private-strings.txt

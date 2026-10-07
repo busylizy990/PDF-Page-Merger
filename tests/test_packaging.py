@@ -16,10 +16,53 @@ import pytest
 PROJECT = Path(__file__).resolve().parent.parent
 ISS = PROJECT / "packaging" / "installer.iss"
 SPEC = PROJECT / "packaging" / "merge_tool.spec"
+NOT_PUBLISHED = PROJECT / "packaging" / "not-published.txt"
+
+# The trading entity, settled 7 October 2026. Named here once because three
+# places have to agree: both legal documents, installer.iss's AppPublisher,
+# and the subject on whatever code-signing certificate is eventually bought.
+ENTITY = "Damreb Consultancy Ltd"
 
 
-def iss_sources() -> list[str]:
-    """Every Source: path in installer.iss, skipping build output and macros."""
+def not_published() -> list[str]:
+    """The paths deliberately kept out of the public repository.
+
+    The licence terms and the privacy notice must identify the contracting party
+    by registered office, which is a residential address; they are issued with
+    each order instead. A clone of the public repository therefore has to build
+    and test without them -- see packaging/not-published.txt.
+    """
+    if not NOT_PUBLISHED.is_file():
+        return []
+    return [
+        line.strip()
+        for line in NOT_PUBLISHED.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+def unpublished_or_missing(relative: str) -> bool:
+    """True when `relative` is absent *and* that absence is by design.
+
+    A test may skip on this. It may not skip merely because a file is missing:
+    that is how a lost document turns into a passing suite.
+    """
+    return relative in not_published() and not (PROJECT / relative).is_file()
+
+
+def needs(relative: str):
+    return pytest.mark.skipif(
+        unpublished_or_missing(relative),
+        reason=f"{relative} is not published -- see packaging/not-published.txt",
+    )
+
+
+def iss_source_lines() -> list[tuple[str, str]]:
+    r"""Every (path, flags) from a plain Source: line, skipping build output.
+
+    ..\dist\{#AppName}\* only exists after a build and carries an ISPP macro;
+    the build itself will complain if that is wrong.
+    """
     found = []
     for line in ISS.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -29,12 +72,105 @@ def iss_sources() -> list[str]:
         if not match:
             continue
         path = match.group(1)
-        # ..\dist\{#AppName}\* only exists after a build, and carries an ISPP
-        # macro; the build itself will complain if that is wrong.
         if "{#" in path or "*" in path:
             continue
-        found.append(path)
+        flags = re.search(r"(?i)Flags:\s*([^;]*)", line)
+        found.append((path, flags.group(1).strip() if flags else ""))
     return found
+
+
+def iss_sources() -> list[str]:
+    """The Source: paths that must exist for the build to work.
+
+    Entries flagged skipifsourcedoesntexist are left out, because Inno Setup is
+    entitled to skip them -- but only the not-published paths may carry that
+    flag, which TestWhatIsNotPublished enforces. Weakening this check was the
+    thing to get right: it exists because order.txt.example was renamed away
+    three times and each time the build died at the Inno step after building
+    everything else.
+    """
+    return [
+        path
+        for path, flags in iss_source_lines()
+        if "skipifsourcedoesntexist" not in flags.lower()
+    ]
+
+
+class TestThePublisher:
+    """AppPublisher is what Windows shows in the UAC prompt, in Programs and
+    Features, and on the signature. It has to match the licensor named in the
+    terms, and both have to match the certificate's subject, or a customer sees
+    one name in the contract and another in the prompt."""
+
+    def test_the_installer_names_the_publisher(self):
+        iss = ISS.read_text(encoding="utf-8")
+        assert f'#define AppPublisher   "{ENTITY}"' in iss, (
+            f"installer.iss must set AppPublisher to {ENTITY} -- the licensor in "
+            "the terms, and the subject any code-signing certificate must carry"
+        )
+
+
+class TestWhatIsNotPublished:
+    """The licence terms and the privacy notice are issued with each order rather
+    than published, because they must give the company's registered office and
+    that is a residential address. packaging/not-published.txt is the list.
+
+    This class exists to stop the mechanism being abused. Tests are allowed to
+    skip for a file on that list, and installer.iss is allowed to flag one with
+    skipifsourcedoesntexist. Neither is allowed for anything else -- otherwise
+    "add the flag" becomes the way to silence a genuinely broken Source: path,
+    which is the failure the Source: check was written for.
+    """
+
+    def test_the_list_exists_and_says_why(self):
+        assert NOT_PUBLISHED.is_file(), (
+            "packaging/not-published.txt is the single record of what is held "
+            "back from the public repository; publish.ps1 and the tests both "
+            "read it, and neither works without it"
+        )
+        text = NOT_PUBLISHED.read_text(encoding="utf-8")
+        assert "#" in text, "the list should explain itself; a bare list of paths will not"
+        assert not_published(), "the list names nothing"
+
+    def test_a_signed_build_refuses_without_the_terms(self):
+        """The one real protection, and the reason the skips above are safe.
+
+        A document on the list could be *lost* rather than withheld, and a test
+        that skips would hide it. Nothing in the tree can tell the difference --
+        the public clone is a legitimate clone with the files absent, so an
+        existence assertion here would be false in half the places it runs. (It
+        was, briefly: that is how this test came to exist.)
+
+        What can be checked is the gate that stops a build without the documents
+        reaching anybody. build.ps1 writes a placeholder licence page when the
+        terms are absent, and throws if it is also asked to sign.
+        """
+        build = (PROJECT / "packaging" / "build.ps1").read_text(encoding="utf-8")
+        guard = build[build.index("Regenerating the licence agreement"):]
+        guard = guard[: guard.index("Write-Step", 1)]
+        assert "if (-not (Test-Path $termsFile))" in guard, (
+            "build.ps1 no longer checks whether the terms are present before "
+            "rendering the licence page"
+        )
+        assert "if ($certificate)" in guard and "throw" in guard, (
+            "build.ps1 must refuse to sign a build whose licence page is a "
+            "placeholder. Signing is what makes an installer distributable, so "
+            "it is the only place the refusal belongs -- and with it gone, the "
+            "skips in this suite would let a lost document through to a customer."
+        )
+
+    def test_the_installer_flags_exactly_the_unpublished_files(self):
+        flagged = {
+            path.replace("\\", "/").lstrip("./")
+            for path, flags in iss_source_lines()
+            if "skipifsourcedoesntexist" in flags.lower()
+        }
+        expected = {p for p in not_published() if not p.startswith("packaging/")}
+        assert flagged == expected, (
+            f"installer.iss flags {sorted(flagged)} as optional, but the files "
+            f"kept out of the public repository are {sorted(expected)}. Any other "
+            "use of skipifsourcedoesntexist hides a build that would have failed."
+        )
 
 
 class TestInstallerSources:
@@ -154,6 +290,7 @@ class TestShippedDllsHaveNotices:
         assert not missing, "shipped with no licence text: " + "; ".join(missing)
 
 
+@needs("LICENCE-TERMS.md")
 class TestLicenceTerms:
     """EULA.rtf is the agreement a customer accepts on the installer's licence
     page. It is generated from LICENCE-TERMS.md, and installer.iss refers to it
@@ -162,6 +299,9 @@ class TestLicenceTerms:
     """
 
     def test_the_installer_shows_a_licence_page(self):
+        """LicenseFile= has no skipifsourcedoesntexist equivalent, so build.ps1
+        writes a placeholder EULA.rtf in a clone without the terms rather than
+        letting Inno fail. This asserts the page is configured at all."""
         text = ISS.read_text(encoding="utf-8")
         match = re.search(r"(?m)^\s*LicenseFile\s*=\s*(.+?)\s*$", text)
         assert match, "no LicenseFile in installer.iss, so no terms are shown"
@@ -209,19 +349,16 @@ class TestLicenceTerms:
 
     def test_the_licensor_is_named(self):
         """Resolved 7 October 2026: the licensor is Damreb Consultancy Ltd, in
-        both legal documents and as the installer's AppPublisher. Was a skipping
-        placeholder test; an assertion now, so the placeholder cannot return and
-        the three cannot drift apart."""
-        entity = "Damreb Consultancy Ltd"
+        both legal documents. Was a skipping placeholder test; an assertion now,
+        so the placeholder cannot return.
+
+        The matching assertion about installer.iss lives in TestThePublisher,
+        outside this class -- it is a check on the installer, and it should still
+        run in a clone that has no licence documents."""
         for name in ("LICENCE-TERMS.md", "PRIVACY-NOTICE.md"):
             text = (PROJECT / name).read_text(encoding="utf-8")
             assert "[LEGAL ENTITY NAME]" not in text, f"{name} still has the placeholder"
-            assert entity in text, f"{name} does not name the licensor"
-        iss = ISS.read_text(encoding="utf-8")
-        assert f'#define AppPublisher   "{entity}"' in iss, (
-            "installer.iss publisher must match the licensor named in the terms, "
-            "and both must match any code-signing certificate's subject"
-        )
+            assert ENTITY in text, f"{name} does not name the licensor"
 
     def test_the_contact_address_is_set(self):
         """Resolved 7 October 2026: contact@damreb.co.uk. A role address rather
@@ -233,21 +370,75 @@ class TestLicenceTerms:
             assert "[CONTACT EMAIL]" not in text, f"{name} still has the placeholder"
             assert "contact@damreb.co.uk" in text, f"{name} has no contact address"
 
-    @pytest.mark.parametrize(
-        "placeholder",
-        ["REGISTERED ADDRESS"],
-    )
-    def test_placeholders_are_recorded_as_outstanding(self, placeholder):
-        """NOT a failure: these are expected to be unfilled while drafting, and
-        build.ps1 refuses a *signed* build while they remain. This test exists so
-        the list stays visible and so it starts failing -- usefully -- once they
-        are filled, prompting it to be tightened into a real gate.
+    def test_the_entity_details_are_set(self):
+        """Resolved 7 October 2026: the company number and the registered office
+        are filled in. This was the last skipping placeholder test, kept so that
+        it would start failing once the details arrived and prompt its own
+        tightening. It did, so here it is as a gate.
+
+        It checks the *shape* and not the values, deliberately. This file is
+        published; the documents are not, precisely because they carry the
+        registered office. An assertion naming the address would put the address
+        in the public repository through the back door -- which is exactly what
+        the first version of this test did, and what the postcode sweep in
+        publish.ps1 failed to catch, there being no postcode in a test file.
+
+        Shape is also all this test was ever for: catching the placeholder coming
+        back, not proof-reading the address.
         """
-        text = (PROJECT / "LICENCE-TERMS.md").read_text(encoding="utf-8")
-        if f"[{placeholder}" not in text:
-            pytest.skip(
-                f"{placeholder} has been filled in. Tighten this test into an "
-                "assertion that it never comes back."
+        for name in ("LICENCE-TERMS.md", "PRIVACY-NOTICE.md"):
+            text = (PROJECT / name).read_text(encoding="utf-8")
+            for token in ("[NUMBER]", "[REGISTERED ADDRESS]"):
+                assert token not in text, f"{name} still has {token}"
+            assert re.search(r"under number\s+\d{8}", text), (
+                f"{name} should give an eight-digit company registration number"
+            )
+            office = re.search(r"registered office is at\s+(.+?)\n\n", text, re.S)
+            assert office, f"{name} should give a registered office address"
+            # Shape, not content: several lines of something with a number and
+            # commas in it. Enough to catch an empty or token address, and it
+            # names nothing.
+            line = " ".join(office.group(1).split())
+            assert len(line) >= 25 and "," in line and any(c.isdigit() for c in line), (
+                f"{name} gives {len(line)} characters for the registered office, "
+                "which does not look like an address"
+            )
+        terms = (PROJECT / "LICENCE-TERMS.md").read_text(encoding="utf-8")
+        assert "a sole trader" not in terms, (
+            "the licensor clause offered a company/sole-trader alternative while "
+            "the trading entity was undecided. It is decided -- a company -- and "
+            "an executed contract cannot offer the reader a choice of counterparty."
+        )
+
+    def test_the_email_provider_is_named(self):
+        """Section 6 of the notice makes a specific claim about where mailbox data
+        sits, which is only checkable if the provider is named. Naming it is also
+        what a firm's compliance team asks for first.
+
+        Zoho is not UK-hosted, so the notice keeps its transfer wording: zoho.eu
+        stores in the EEA, which UK adequacy covers, but Zoho's group companies
+        outside the EEA may access it. Storage needs no safeguard; that access
+        does. If the mailbox ever moves provider, section 6 moves with it.
+        """
+        text = (PROJECT / "PRIVACY-NOTICE.md").read_text(encoding="utf-8")
+        assert "[EMAIL HOST" not in text, "the email-host note is still unresolved"
+        assert "Zoho" in text, "the notice does not name the email provider"
+        assert "International Data Transfer Agreement" in text, (
+            "the provider stores inside the EEA but allows group access from "
+            "outside it, so the notice must still describe a transfer safeguard"
+        )
+
+    def test_neither_document_carries_drafting_notes(self):
+        """Both documents now have no placeholders, so both are issuable, so
+        neither should carry a checklist addressed to the licensor. build.ps1
+        blocks a signed build on this phrase; this catches it at test time and in
+        an unsigned build too."""
+        for name in ("LICENCE-TERMS.md", "PRIVACY-NOTICE.md"):
+            text = (PROJECT / name).read_text(encoding="utf-8")
+            assert "delete before issuing" not in text, (
+                f"{name} has a drafting-notes section. Anything in it that is "
+                "still live belongs in BUSINESS-NOTES.md, which is not published "
+                "and not handed to customers."
             )
 
 
@@ -314,6 +505,7 @@ class TestTheTwoFilesAgree:
         )
 
 
+@needs("PRIVACY-NOTICE.md")
 class TestPrivacyNotice:
     """Clause 8.3 of the terms promises a privacy notice on request, so one has
     to exist and has to say the things the UK GDPR requires a notice to say."""
@@ -323,6 +515,7 @@ class TestPrivacyNotice:
         assert path.is_file(), "clause 8.3 promises a privacy notice; there is none"
         return path.read_text(encoding="utf-8")
 
+    @needs("LICENCE-TERMS.md")
     def test_the_terms_and_the_notice_point_at_each_other(self):
         terms = (PROJECT / "LICENCE-TERMS.md").read_text(encoding="utf-8")
         assert "privacy notice" in terms.lower()
@@ -358,6 +551,8 @@ class TestPrivacyNotice:
         detail would be missed."""
         import re as _re
 
+        if unpublished_or_missing("LICENCE-TERMS.md"):
+            pytest.skip("LICENCE-TERMS.md is not published -- nothing to compare against")
         pattern = _re.compile(r"\[(LEGAL ENTITY NAME|NUMBER|REGISTERED ADDRESS|CONTACT EMAIL)\]")
         terms = set(pattern.findall((PROJECT / "LICENCE-TERMS.md").read_text(encoding="utf-8")))
         notice = set(pattern.findall(self._text()))
@@ -381,8 +576,16 @@ class TestPlaceholderTokensDoNotCollide:
     LEGAL = (PROJECT / "LICENCE-TERMS.md", PROJECT / "PRIVACY-NOTICE.md")
 
     def _tokens(self, path):
+        """An absent legal document contributes no tokens.
+
+        That is right rather than convenient: with the document absent there is
+        no second meaning for a token to collide with, and the customer note --
+        which is the half that is always here -- is still checked against
+        whatever legal documents this clone does carry."""
         import re as _re
 
+        if not path.is_file():
+            return set()
         return set(_re.findall(r"\[[A-Z][A-Z0-9 _]*\]", path.read_text(encoding="utf-8")))
 
     def test_no_token_means_two_different_things(self):

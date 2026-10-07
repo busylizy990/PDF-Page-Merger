@@ -99,10 +99,15 @@ Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; The licence the user accepted during setup, left on disk so they can read it
 ; again afterwards. The accept page is RTF; this is the readable original.
-Source: "..\LICENCE-TERMS.md"; DestDir: "{app}"; Flags: ignoreversion
+;
+; skipifsourcedoesntexist, on these two only: they are not in the public
+; repository (packaging\not-published.txt says why), so a clone of it must
+; still compile. build.ps1 refuses to *sign* a build without them, which is
+; the step that makes an installer distributable.
+Source: "..\LICENCE-TERMS.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 ; Clause 8.3 promises the privacy notice on request and names this file, so
 ; it travels with the terms rather than leaving that reference dangling.
-Source: "..\PRIVACY-NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\PRIVACY-NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#GuiExe}"

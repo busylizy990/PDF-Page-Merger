@@ -65,9 +65,10 @@ them; [packaging/README.md](packaging/README.md) covers building and releasing.
 source is published so it can be read and assessed, not so it can be reused. If
 you want to do something with it, ask.
 
-The program itself is supplied to users under the terms in
-[LICENCE-TERMS.md](LICENCE-TERMS.md), which the installer presents on an
-accept-or-decline page. [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) carries
+The program itself is supplied to users under written licence terms, which the
+installer presents on an accept-or-decline page and which are issued with each
+order. They are not published here, because they have to identify the
+contracting party by registered office; ask and you will be sent them. [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) carries
 the licences of the open-source components it is built from — those are of course
 theirs, not mine, and nothing above affects them.
 
@@ -84,7 +85,6 @@ PDF Page Merger Tool\
   docs\order.txt.example  <- copy to order.txt for exact control
   settings.json       <- the window's saved preferences (created on first use)
   packaging\          <- build a signed installer (see packaging\README.md)
-  LICENCE-TERMS.md    <- the terms it is sold under; the installer shows these
   PROJECT-NOTES.md    <- why it is built the way it is, and what is still open
   THIRD-PARTY-NOTICES.txt  <- licences of the components it is built from
   tests\              <- the test suite:  .python\python.exe -m pytest

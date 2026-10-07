@@ -241,17 +241,46 @@ if ($noticesAfter -ne $noticesBefore) {
 Write-Step "Regenerating the licence agreement"
 $termsFile = Join-Path $ProjectRoot 'LICENCE-TERMS.md'
 $eulaFile  = Join-Path $Packaging 'EULA.rtf'
-if (-not (Test-Path $termsFile)) { throw "LICENCE-TERMS.md is missing -- installer.iss requires EULA.rtf." }
-$eulaBefore = if (Test-Path $eulaFile) { (Get-FileHash $eulaFile -Algorithm SHA256).Hash } else { '' }
-Invoke-Native $python @((Join-Path $Packaging 'make_eula.py'))
-if ($LASTEXITCODE -ne 0) { throw "Could not regenerate EULA.rtf." }
-if (-not (Test-Path $eulaFile)) { throw "make_eula.py produced no EULA.rtf." }
-$eulaAfter = (Get-FileHash $eulaFile -Algorithm SHA256).Hash
-if ($eulaAfter -ne $eulaBefore) {
-    Write-Host "    EULA.rtf CHANGED -- LICENCE-TERMS.md has been edited since the last" -ForegroundColor Yellow
-    Write-Host "    build. Review and commit it." -ForegroundColor Yellow
+# LICENCE-TERMS.md is not in the public repository -- see
+# packaging\not-published.txt. A clone of it must still build, so rather than
+# dying here we write an EULA that says what it is. Inno Setup has no
+# "skip the licence page if the file is missing" option, and an installer
+# with no licence page at all would look finished when it is not.
+#
+# The refusal belongs at signing, not here: signing is what makes a build
+# distributable, and the document gate below already throws on a missing
+# document when a certificate is in play.
+if (-not (Test-Path $termsFile)) {
+    if ($certificate) {
+        throw ("LICENCE-TERMS.md is missing, so there are no terms to put on the " +
+               "installer's accept page. A signed build is a build going to " +
+               "somebody; it cannot ship a placeholder licence.")
+    }
+    Write-Host "    LICENCE-TERMS.md IS NOT IN THIS CLONE." -ForegroundColor Yellow
+    Write-Host "    Writing a placeholder licence page. The installer this produces is" -ForegroundColor Yellow
+    Write-Host "    for testing only and must not be distributed." -ForegroundColor Yellow
+    $stub = @(
+        '{\rtf1\ansi\deff0{\fonttbl{\f0 Segoe UI;}}\fs20'
+        '\b PDF Page Merger -- licence terms not included \b0\par\par'
+        'This copy was built from a clone that does not carry the licence terms.\par\par'
+        'The terms are issued directly with each order. This build is for testing'
+        ' only and must not be distributed. Nothing on this page is an agreement.\par'
+        '}'
+    ) -join "`r`n"
+    Set-Content -Path $eulaFile -Value $stub -Encoding ASCII
+    Write-Note "placeholder EULA.rtf written"
 } else {
-    Write-Note "licence unchanged"
+    $eulaBefore = if (Test-Path $eulaFile) { (Get-FileHash $eulaFile -Algorithm SHA256).Hash } else { '' }
+    Invoke-Native $python @((Join-Path $Packaging 'make_eula.py'))
+    if ($LASTEXITCODE -ne 0) { throw "Could not regenerate EULA.rtf." }
+    if (-not (Test-Path $eulaFile)) { throw "make_eula.py produced no EULA.rtf." }
+    $eulaAfter = (Get-FileHash $eulaFile -Algorithm SHA256).Hash
+    if ($eulaAfter -ne $eulaBefore) {
+        Write-Host "    EULA.rtf CHANGED -- LICENCE-TERMS.md has been edited since the last" -ForegroundColor Yellow
+        Write-Host "    build. Review and commit it." -ForegroundColor Yellow
+    } else {
+        Write-Note "licence unchanged"
+    }
 }
 
 # The terms ship with [PLACEHOLDERS] in them until the trading entity is settled.

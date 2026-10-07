@@ -1,0 +1,21 @@
+# Files kept out of the public repository.
+#
+# One path per line, relative to the project root. Blank lines and # comments
+# are ignored. packaging\publish.ps1 removes these from the published branch,
+# and the tests check that everything depending on them tolerates their absence.
+#
+# Why these three: the licence terms and the privacy notice have to identify the
+# contracting party, which means the company's registered office. That address
+# is on the Companies House register already, but "findable on the register" and
+# "indexed in a public git repository, in a history that is awkward to scrub" are
+# different kinds of exposure. The documents are issued directly with each order
+# instead, which is where a customer actually needs them.
+#
+# EULA.rtf is generated from LICENCE-TERMS.md and carries the same address, so it
+# goes with them. A clone without the terms builds an installer whose licence
+# page says so, and build.ps1 refuses to sign one -- see "Publishing" in
+# packaging\README.md.
+
+LICENCE-TERMS.md
+PRIVACY-NOTICE.md
+packaging/EULA.rtf

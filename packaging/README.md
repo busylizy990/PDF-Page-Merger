@@ -210,40 +210,67 @@ a build step: a solicitor should read `LICENCE-TERMS.md`, and somebody should
 confirm the Microsoft Visual C++ runtime redistribution terms cover shipping
 `VCRUNTIME140.dll` the way this installer does.
 
-## Updating the public repository
+## Publishing
 
-The public repository has **its own history**, starting from a single squashed
-commit. It shares no ancestry with this one, so the two cannot be merged and
-`main` must never be pushed to it. The local branch `public-release` is that
-history; keep it and do not delete it.
-
-To publish the current state:
+Use the script. It is not a convenience -- publishing by hand now has a step that
+must not be forgotten, and a procedure that depends on remembering a step will
+one day publish a home address.
 
 ```powershell
-git checkout public-release
-git restore --source=main --worktree --staged .   # make the tree match main
-git commit -m "what changed"
-git push public public-release:main
-git checkout main
+.\packaging\publish.ps1 -Message "what changed"          # commits, shows the diff
+.\packaging\publish.ps1 -Message "what changed" -Push    # and pushes
 ```
 
-The `restore` line is what does the work: it makes the public branch's tree
-identical to `main` without bringing any of `main`'s commits with it. The push is
-then an ordinary fast-forward on the public branch.
+Without `-Push` it stops after committing locally and prints what it would send,
+which is the point: look at the tree before it leaves.
 
-**Do not run `git push public main:main`.** It asks git to replace the public
-history with this repository's, which git will refuse as a non-fast-forward.
-Refusing is correct -- do not reach for `--force` to get past it, because forcing
-it publishes this repository's entire history rather than the squashed one. If a
-push to `public` is ever rejected, the rejection is the safety net working; stop
-and re-read this section rather than overriding it.
+### What is held back, and why
 
-Check what you are about to publish before pushing:
+`packaging\not-published.txt` lists the files kept out of the public repository.
+Today that is the licence terms, the privacy notice, and the `EULA.rtf` generated
+from the terms.
 
-```powershell
-git diff --cached --stat        # on public-release, after the restore
-git log public-release --oneline
-```
+They have to identify the contracting party, which means giving the company's
+registered office. That address is on the Companies House register already, but
+"findable on the register" and "indexed in a public git repository, in a history
+that is awkward to scrub" are different kinds of exposure. The documents go to
+customers with their order, which is where they are actually needed.
+
+So a clone of the public repository has to work without them, and does:
+
+- `installer.iss` flags those two files `skipifsourcedoesntexist`.
+- `build.ps1` writes a placeholder licence page saying the terms are not included
+  and the build must not be distributed -- Inno Setup has no way to omit the
+  licence page, and a setup with no page at all would look finished.
+- The same script **refuses to sign** such a build. Signing is what makes an
+  installer distributable, so that is where the refusal belongs.
+- The tests that read those documents skip, and only for paths on that list.
+  `TestWhatIsNotPublished` asserts the list and the installer flags agree, so
+  the flag cannot be used to silence a genuinely broken `Source:` path.
+
+Both halves were verified by deleting the three files and running the suite and a
+build: 213 passed, 18 skipped, and an installer was produced whose licence page
+says what it is.
+
+### The two things the script protects you from
+
+**It never pushes `main`.** The public repository has its own history, starting
+from a single squashed commit, and shares no ancestry with this one. The two
+cannot be merged. The local branch `public-release` is that history -- keep it,
+do not delete it. What the script does is make `public-release`'s *tree* match
+`main` (`git restore --source=main`), without bringing any of `main`'s commits
+with it, so the push is an ordinary fast-forward.
+
+Never run `git push public main:main`. Git will refuse it as a non-fast-forward,
+and refusing is correct -- forcing past it publishes this repository's entire
+history rather than the squashed one. A rejected push to `public` is the safety
+net working; stop and re-read this section rather than overriding it.
+
+**It sweeps the tree for a postal address** before committing, using a
+postcode-shaped pattern, and throws if it finds one. Removing the listed files is
+necessary but not sufficient: the address could arrive in a file nobody thought
+about -- a README, a new document, a pasted example. Across the other 41 files
+there are no false positives.
 
 The remote named `public` points at the published repository; `origin` points at
 this one. They are deliberately different names so neither is the default.
