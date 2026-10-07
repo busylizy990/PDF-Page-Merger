@@ -275,10 +275,22 @@ stick, and send the checksum separately so their IT can verify it.
 file is enough. Without it, supporting two customers on different builds is
 guesswork.
 
-**Before the first paid release**, two things are still outstanding and neither is
-a build step: a solicitor should read `LICENCE-TERMS.md`, and somebody should
-confirm the Microsoft Visual C++ runtime redistribution terms cover shipping
-`VCRUNTIME140.dll` the way this installer does.
+**Before the first paid release**, two things are still outstanding and neither
+is a build step.
+
+A solicitor should read `LICENCE-TERMS.md`. It is complete and free of
+placeholders, so it is in a state worth paying for an opinion on.
+
+And the `VCRUNTIME140.dll` question needs closing. Microsoft's terms do allow the
+redistributable files to be copied unmodified into an application-local folder,
+which is what this installer does -- but only for holders of a validly licensed
+copy of Visual Studio, which this project does not use. The DLL comes from the
+CPython installation instead. Installing the free Visual Studio Build Tools would
+satisfy the stated condition, and is wanted anyway for the Azure signing route;
+the alternative is to stop shipping the DLL and depend on the Visual C++
+Redistributable, which is Microsoft's own recommendation and lets a C runtime
+security fix reach customers through Windows Update rather than never.
+`PROJECT-NOTES.md` has the longer version.
 
 ## Publishing
 

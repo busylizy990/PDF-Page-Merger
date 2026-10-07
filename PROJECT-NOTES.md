@@ -245,6 +245,33 @@ Visual Studio terms rather than an open-source licence with a notice obligation,
 and that is worth a lawyer's glance before a commercial release rather than a
 guessed licence text.
 
+**Researched on 8 October 2026, and narrowed rather than settled.** Microsoft's
+Visual Studio redistribution terms do permit copying the listed redistributable
+files unmodified alongside a program, and explicitly allow placing them in the
+application-local folder -- which is what this installer does. But the grant is
+conditional on holding *a validly licensed copy of Visual Studio*, and this
+project does not use Visual Studio at all. The DLL arrives from the CPython
+installation, which PyInstaller copies; the PSF licence covers CPython, not
+Microsoft's C runtime. No source was found that closes that gap, so the chain of
+permission is not established.
+
+Two ways to resolve it, neither large:
+
+1. **Hold a licensed copy.** Visual Studio Build Tools is free, and installing it
+   once would satisfy the condition the terms actually state. It is also needed
+   anyway for the Azure signing route, which wants `signtool.exe`.
+2. **Stop shipping it.** Microsoft's own recommendation is central deployment --
+   depend on the Visual C++ Redistributable being installed, rather than carrying
+   the DLL app-local. Their reason is servicing, and it is a real one: a security
+   fix to the C runtime reaches a centrally deployed copy through Windows Update
+   and never reaches an app-local one. That argument carries more weight for
+   software sold to firms handling privileged material than it would elsewhere.
+
+Option 1 is less work and keeps the installer self-contained, which is one of
+this product's selling points. Option 2 is better for security servicing and
+costs the self-contained property. Still a question for a lawyer's glance rather
+than a guess, but a narrower one than it was.
+
 **There is no Explorer right-click menu, on purpose.** One was written and
 dropped unused on 2 October 2026, before ever being installed. Three reasons, in
 increasing order of importance. It registered only 4 of the 25 supported
@@ -617,13 +644,20 @@ per-user and all-users, the documentation placement, the read-only output
 fallback, and the uninstaller have all been exercised. The right-click menu is not
 a gap because the feature was removed; see "There is no Explorer right-click menu,
 on purpose". What has *not* been done is a real signed release, for want of a
-certificate, and the installed copy at `C:\Program Files` predates the
-`os.access` fix, so it still has the crash until it is reinstalled.
+certificate.
 
-Two later changes have not been through an install: the documentation now being
-placed beside the programs, and the removal of the registry entries. Both are
-declarative in `installer.iss` and the compiler confirms them, but the next
-install is what proves them.
+**The install that proved the rest happened on 7-8 October 2026**, and is
+described under "The whole install/uninstall cycle was verified" above. It closed
+the two items that were open here: the documentation really does land beside the
+programs rather than in `_internal\`, and the removal of the registry entries
+leaves nothing behind -- the uninstall left no key anywhere under
+`HKLM\SOFTWARE` or `HKCU\SOFTWARE`, nothing under the `AppId`, and no App Paths
+entry. Both had been declarative in `installer.iss`, which the compiler can
+confirm but cannot prove.
+
+It also means there is no longer a stale installed copy carrying the `os.access`
+crash: that copy was removed, and the one that replaced it was tested against a
+genuinely unwritable install directory.
 
 **The signing path is exercised — verified 2 October 2026 with a throwaway
 certificate.** `New-TestCertificate.ps1` (without `-Trust`, so nothing was added
@@ -738,15 +772,24 @@ That is how the one real conversion bug was caught: a code span inside an italic
 paragraph came out with its backticks showing, because `inline()` escaped
 emphasised runs instead of recursing into them.
 
-**The terms still carry placeholders** — entity name, registered address,
-contact, privacy notice — and `make_eula.py` lists them on every run. A build
+**The terms carried placeholders until 7 October 2026** — entity name,
+registered address, contact, privacy notice — and the machinery built around
+them is still live, because it is what stops a half-finished document reaching a
+customer. `make_eula.py` lists any placeholder it finds on every run. A build
 with `-SkipSign` prints them in yellow and carries on; **a signed build throws**,
 because a signed build is one going to somebody, and an accept page reading
 "[LEGAL ENTITY NAME]" is not a contract. Both the script and `build.ps1` find
 them with the same regex; keep the two in step if you change either.
 
-**Still outstanding:** the terms carry placeholders, and they have not been read
-by a solicitor — see `BUSINESS-NOTES.md`. Bump the version for every build anyone receives, and keep a record of
+The gate is quiet now, which is exactly when a gate is easiest to break without
+noticing. `tests/test_packaging.py` asserts that each filled value cannot revert
+to a token, and that neither document carries a "delete before issuing" section.
+
+**Still outstanding:** the terms have not been read by a solicitor — see
+`BUSINESS-NOTES.md`. The placeholders are all filled as of 7 October 2026, so
+the documents are in a state worth paying someone to read.
+
+**Bump the version for every build anyone receives**, and keep a record of
 who has which, or supporting "it does not work" is guesswork. It has to be set in
 **two** places — `AppVersion` in `installer.iss` and `VERSION` in
 `merge_tool.spec` — and this file used to claim the two were cross-checked. They
