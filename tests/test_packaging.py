@@ -207,9 +207,25 @@ class TestLicenceTerms:
         assert "[PRIVACY NOTICE" not in text
         assert "available on request" in text
 
+    def test_the_licensor_is_named(self):
+        """Resolved 7 October 2026: the licensor is Damreb Consultancy Ltd, in
+        both legal documents and as the installer's AppPublisher. Was a skipping
+        placeholder test; an assertion now, so the placeholder cannot return and
+        the three cannot drift apart."""
+        entity = "Damreb Consultancy Ltd"
+        for name in ("LICENCE-TERMS.md", "PRIVACY-NOTICE.md"):
+            text = (PROJECT / name).read_text(encoding="utf-8")
+            assert "[LEGAL ENTITY NAME]" not in text, f"{name} still has the placeholder"
+            assert entity in text, f"{name} does not name the licensor"
+        iss = ISS.read_text(encoding="utf-8")
+        assert f'#define AppPublisher   "{entity}"' in iss, (
+            "installer.iss publisher must match the licensor named in the terms, "
+            "and both must match any code-signing certificate's subject"
+        )
+
     @pytest.mark.parametrize(
         "placeholder",
-        ["LEGAL ENTITY NAME", "REGISTERED ADDRESS", "CONTACT EMAIL"],
+        ["REGISTERED ADDRESS", "CONTACT EMAIL"],
     )
     def test_placeholders_are_recorded_as_outstanding(self, placeholder):
         """NOT a failure: these are expected to be unfilled while drafting, and

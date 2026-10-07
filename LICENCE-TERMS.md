@@ -6,7 +6,7 @@ These terms govern the supply and use of PDF Page Merger. They are the terms
 shown on the installer's licence page, and the terms accepted when the Software
 is installed or used.
 
-**Licensor:** [LEGAL ENTITY NAME], [a company registered in England and Wales
+**Licensor:** Damreb Consultancy Ltd, [a company registered in England and Wales
 under number [NUMBER] / a sole trader] of [REGISTERED ADDRESS] ("we", "us",
 "our").
 
@@ -363,7 +363,7 @@ jurisdiction to settle any such dispute or claim.
 
 ---
 
-*PDF Page Merger. Copyright (c) 2026 [LEGAL ENTITY NAME]. All rights reserved.*
+*PDF Page Merger. Copyright (c) 2026 Damreb Consultancy Ltd. All rights reserved.*
 
 *The open-source components distributed with this program are listed, with their
 licences, in `THIRD-PARTY-NOTICES.txt`.*

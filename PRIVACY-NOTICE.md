@@ -29,7 +29,7 @@ first paid sale.
 
 ## 1. Who we are
 
-**Controller:** [LEGAL ENTITY NAME], a company registered in England and Wales
+**Controller:** Damreb Consultancy Ltd, a company registered in England and Wales
 under number [NUMBER], of [REGISTERED ADDRESS].
 
 **Contact for any privacy question or request:** [CONTACT EMAIL]
@@ -90,7 +90,7 @@ describe the problem rather than send the file, we will work with that.
 
 We keep the number of recipients deliberately small:
 
-- **Our payment provider**, to take payment and issue receipts.
+- **Our bank**, which necessarily sees the payment itself.
 - **Our accountant, and HM Revenue & Customs**, for the statutory accounting and
   tax records we are obliged to keep.
 - **Our email provider**, which necessarily processes any correspondence you send
@@ -102,19 +102,31 @@ Each of these acts under contract and may use the data only for the purpose we
 give it to them for. We do not otherwise disclose your personal data, except
 where we are required to by law.
 
-[SUPPLIERS: name the payment provider and the email provider here once chosen,
-and state whether either stores data outside the UK. If one does, add the
-transfer-safeguard wording in section 6.]
+**There is no payment processor.** We invoice, and you settle by bank transfer.
+No card details, and no payment service provider, are involved at any point --
+which is why no such company appears on the list above and why you need no
+assurances about one.
+
+[EMAIL HOST: name the provider of the damreb.co.uk mailbox once chosen, and say
+whether it stores data outside the UK. If it does, section 6 keeps its
+transfer-safeguard wording; if it is UK-hosted, replace section 6 with the single
+sentence noted there.]
 
 ## 6. Where it is held
 
 We hold your data in the United Kingdom, or in a country the UK has decided
 offers adequate protection.
 
+Because we use no payment processor, the only supplier that routinely holds any
+of your personal data is our email provider.
+
 Where a supplier we rely on stores data elsewhere, we rely on the UK's
 International Data Transfer Agreement, or the UK Addendum to the EU Standard
 Contractual Clauses, together with any additional safeguards those require. You
 may ask us for details of the safeguards applying to any particular transfer.
+
+[IF THE MAILBOX IS UK-HOSTED: delete the paragraph above and say instead that no
+personal data of yours is transferred outside the United Kingdom.]
 
 ## 7. How long we keep it
 
@@ -173,10 +185,12 @@ the one that applied to that purchase.
 ## Notes for the licensor — delete before issuing
 
 1. **Fill the four placeholders**, which are the same ones as in
-   `LICENCE-TERMS.md`: `[LEGAL ENTITY NAME]`, `[NUMBER]`,
+   `LICENCE-TERMS.md`: `Damreb Consultancy Ltd`, `[NUMBER]`,
    `[REGISTERED ADDRESS]`, `[CONTACT EMAIL]`.
-2. **Complete the `[SUPPLIERS: ...]` note in section 5** once a payment provider
-   and an email provider are chosen, and delete the bracketed instruction.
+2. **Complete the `[EMAIL HOST: ...]` note in section 5**, and the matching note
+   in section 6, once the damreb.co.uk mailbox is set up. The payment side is
+   settled: invoicing against bank transfer means there is no processor to name,
+   which is a stronger position than naming one.
 3. **Check whether you must pay the ICO data protection fee.** Most UK
    controllers must register and pay it — tier 1 is the lowest band — but there
    is a narrow exemption for processing limited to core business purposes such as
