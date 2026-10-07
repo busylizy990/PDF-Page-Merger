@@ -223,9 +223,19 @@ class TestLicenceTerms:
             "and both must match any code-signing certificate's subject"
         )
 
+    def test_the_contact_address_is_set(self):
+        """Resolved 7 October 2026: contact@damreb.co.uk. A role address rather
+        than a personal one, because clause 13.8 makes it the service address for
+        notices of a claim -- that should not depend on one person's inbox, and a
+        personal name would also go into the public repository."""
+        for name in ("LICENCE-TERMS.md", "PRIVACY-NOTICE.md"):
+            text = (PROJECT / name).read_text(encoding="utf-8")
+            assert "[CONTACT EMAIL]" not in text, f"{name} still has the placeholder"
+            assert "contact@damreb.co.uk" in text, f"{name} has no contact address"
+
     @pytest.mark.parametrize(
         "placeholder",
-        ["REGISTERED ADDRESS", "CONTACT EMAIL"],
+        ["REGISTERED ADDRESS"],
     )
     def test_placeholders_are_recorded_as_outstanding(self, placeholder):
         """NOT a failure: these are expected to be unfilled while drafting, and

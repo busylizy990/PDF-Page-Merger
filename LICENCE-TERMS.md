@@ -10,7 +10,7 @@ is installed or used.
 under number [NUMBER] / a sole trader] of [REGISTERED ADDRESS] ("we", "us",
 "our").
 
-**Contact:** [CONTACT EMAIL]
+**Contact:** contact@damreb.co.uk
 
 ---
 
@@ -347,7 +347,7 @@ right under the Contracts (Rights of Third Parties) Act 1999 to enforce any of
 its terms.
 
 13.8 **Notices.** Notices must be in writing, and sent to the addresses in the
-Order or, for us, to [CONTACT EMAIL]. Email is sufficient, except for a notice of
+Order or, for us, to contact@damreb.co.uk. Email is sufficient, except for a notice of
 termination or of a claim, which must also be sent by post.
 
 13.9 **Force majeure.** Neither party is liable for a failure to perform caused by

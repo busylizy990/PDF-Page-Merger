@@ -32,7 +32,7 @@ first paid sale.
 **Controller:** Damreb Consultancy Ltd, a company registered in England and Wales
 under number [NUMBER], of [REGISTERED ADDRESS].
 
-**Contact for any privacy question or request:** [CONTACT EMAIL]
+**Contact for any privacy question or request:** contact@damreb.co.uk
 
 We are the controller of the personal data described in this notice. We have not
 appointed a Data Protection Officer, and are not required to.
@@ -157,13 +157,13 @@ Under the UK GDPR you have the right to:
 We do not carry out automated decision-making or profiling, so no rights arise
 under Article 22.
 
-To exercise any of these, email [CONTACT EMAIL]. We will respond within one
+To exercise any of these, email contact@damreb.co.uk. We will respond within one
 month. There is no charge. We may ask you to confirm who you are before we
 disclose anything, which protects you rather than us.
 
 ## 9. If you are unhappy
 
-Please tell us first, at [CONTACT EMAIL] — most things are quicker to put right
+Please tell us first, at contact@damreb.co.uk — most things are quicker to put right
 directly.
 
 You can also complain to the UK supervisory authority at any time:
@@ -177,16 +177,18 @@ Complaining to the ICO does not affect any other legal remedy you may have.
 
 If we change how we handle personal data we will update this notice and change
 the version and date at the top. The current version is always available on
-request at [CONTACT EMAIL], and the version in force when you bought a licence is
+request at contact@damreb.co.uk, and the version in force when you bought a licence is
 the one that applied to that purchase.
 
 ---
 
 ## Notes for the licensor — delete before issuing
 
-1. **Fill the four placeholders**, which are the same ones as in
-   `LICENCE-TERMS.md`: `Damreb Consultancy Ltd`, `[NUMBER]`,
-   `[REGISTERED ADDRESS]`, `[CONTACT EMAIL]`.
+1. **Two placeholders are left**, the same two as in `LICENCE-TERMS.md`: the
+   company registration number and the registered office. The licensor is named
+   and the contact address is set. Do not write the token names out in this list
+   again -- a blanket substitution fills them here too, which is how this item
+   briefly came to read "fill the four placeholders: Damreb Consultancy Ltd".
 2. **Complete the `[EMAIL HOST: ...]` note in section 5**, and the matching note
    in section 6, once the damreb.co.uk mailbox is set up. The payment side is
    settled: invoicing against bank transfer means there is no processor to name,
