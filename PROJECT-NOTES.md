@@ -498,6 +498,38 @@ launches and titles its window; `README.md`, `order.txt.example` and the `input\
 instructions all ship in `_internal\`; and none of pymupdf, cv2, numpy,
 playwright, reportlab, openpyxl or docx is bundled.
 
+**The whole install/uninstall cycle was verified on 7-8 October 2026.**
+Installed from `PDFPageMerger-1.0.0-Setup.exe` to the default
+`C:\Program Files\PDF Page Merger\`, exercised, and removed. What it showed:
+
+- The uninstall entry registers the publisher from `AppPublisher`, version
+  1.0.0, install location, ~55 MB.
+- All six customer-facing files land at the top level, with nothing misfiled
+  into `_internal\`, and `input\READ ME - put PDFs here.txt` is in the folder
+  the tool actually watches.
+- **The output fallback works against a genuinely unwritable directory.** A
+  write probe into the install folder fails as it should, and the installed
+  command line with no `-o` resolved its output to
+  `Documents\PDF Page Merger\merged.pdf` rather than raising. This is the
+  2 October `os.access` crash, checked where it actually happened rather than
+  only in the test suite.
+- Settings went to `AppData\Roaming\PDF Page Merger\settings.json`, not the
+  install folder.
+- An AES-256 source merged with `--password`, so the bundled OpenSSL works in
+  the frozen build -- the 5 October defect, likewise checked against a real
+  installation.
+- The window opens, reports a real window handle and title, and closes cleanly.
+- The uninstall removes the registry entry, the install folder, the Start Menu
+  group and the desktop shortcut, and leaves no orphaned keys anywhere under
+  `HKLM\SOFTWARE` or `HKCU\SOFTWARE` -- nothing under the `AppId`, no App
+  Paths entry. It deliberately keeps `settings.json` and anything in
+  `Documents\PDF Page Merger\`, which is the user's data rather than the
+  program's.
+
+Installing needs elevation, and a silent install launched from a background
+shell has its UAC request cancelled with exit code 2 and no log written. Run it
+interactively, or from a foreground terminal.
+
 **The programs carried no version metadata until 7 October 2026.** `VERSION`
 was declared in `merge_tool.spec` from the first build and never passed to either
 `EXE()` call, so `Properties -> Details` was blank on both executables: no
