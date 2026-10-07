@@ -266,11 +266,36 @@ and refusing is correct -- forcing past it publishes this repository's entire
 history rather than the squashed one. A rejected push to `public` is the safety
 net working; stop and re-read this section rather than overriding it.
 
-**It sweeps the tree for a postal address** before committing, using a
-postcode-shaped pattern, and throws if it finds one. Removing the listed files is
-necessary but not sufficient: the address could arrive in a file nobody thought
-about -- a README, a new document, a pasted example. Across the other 41 files
-there are no false positives.
+**It sweeps the tree for the address** before committing, and throws if it
+finds it. Removing the listed files is necessary but not sufficient: the address
+can arrive in a file nobody thought about. It did, the first time this ran -- a
+test asserting the literal company number and street name, in a file that is
+published.
+
+Two sweeps, because one pattern cannot do both jobs:
+
+- **Postcode-shaped text**, by regular expression. Needs no list, and finds a
+  pasted address anywhere. Across the other 41 files there are no false
+  positives.
+- **The literal strings**, which `Get-DerivedPrivateStrings` works out from the
+  held-back documents themselves -- the company number, and the registered
+  office split into comma-separated fragments. They are read out of the source
+  branch with `git show`, because by the time the sweep runs they have been
+  deleted from the working tree.
+
+Deriving rather than listing is what makes this survive a fresh clone. The
+documents are the authority for what the address is, and this repository always
+has them -- it is the only place publishing happens from. Fragments rather than
+whole addresses, because a fragment still matches a reformatted version, which is
+how an address usually escapes.
+
+`packaging\private-strings.txt` is still read if it exists, for anything
+derivation cannot see. It is gitignored, nothing depends on it, and there is
+currently no need for one.
+
+A leak is reported with the string that matched, so a false positive can be
+diagnosed. If one ever appears, narrow the derivation deliberately rather than
+deleting the check.
 
 The remote named `public` points at the published repository; `origin` points at
 this one. They are deliberately different names so neither is the default.

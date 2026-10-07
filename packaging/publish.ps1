@@ -41,6 +41,75 @@ $ProjectRoot  = Split-Path -Parent $Packaging
 function Write-Step { param($t) Write-Host "`n>>> $t" -ForegroundColor Cyan }
 function Write-Note { param($t) Write-Host "    $t" -ForegroundColor DarkGray }
 
+function Get-DerivedPrivateStrings {
+    <#
+    .SYNOPSIS
+        Work out what must not be published from the documents being held back.
+
+    .DESCRIPTION
+        The company number and the registered office live in the very documents
+        this script removes, and this repository always has them -- it is the
+        only place publishing happens from. So rather than depending on a
+        hand-written list, derive the strings to sweep for from the documents
+        themselves.
+
+        They are read out of the source branch with `git show`, not from disk:
+        by the time the sweep runs they have been deleted from the working tree,
+        which is the whole point of the exercise.
+
+        This is what makes private-strings.txt supplementary rather than
+        load-bearing. That file is gitignored -- a published list of what must
+        not be published would defeat the point -- so it does not survive a
+        fresh clone, and the sweep it feeds is the half that caught a leak the
+        generic postcode pattern missed. Deriving removes that dependency.
+
+        Fragments, not whole addresses: a fragment still matches a reformatted
+        version, which is how an address usually escapes.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceBranch,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Documents
+    )
+
+    $strings = @()
+    foreach ($doc in $Documents) {
+        if ($doc -notlike '*.md') { continue }
+
+        # ls-tree first: `git show` on a path that is not in the branch writes
+        # to stderr, and in PowerShell 5.1 that is noise at best.
+        $present = & git ls-tree --name-only $SourceBranch -- $doc
+        if (-not $present) { continue }
+
+        $text = (& git show "${SourceBranch}:${doc}") -join "`n"
+        if (-not $text) { continue }
+
+        # The company registration number.
+        foreach ($m in [regex]::Matches($text, 'under number\s+(\d{6,8})')) {
+            $strings += $m.Groups[1].Value
+        }
+
+        # The registered office, as comma-separated fragments. The clause runs
+        # to the end of its paragraph and may carry a trailing parenthetical --
+        # '("we", "us", "our")' in the terms -- so cut that off before splitting.
+        foreach ($m in [regex]::Matches($text, 'registered office is at\s+([\s\S]+?)\r?\n\r?\n')) {
+            $office = ($m.Groups[1].Value -replace '\s+', ' ').Trim()
+            $paren = $office.IndexOf(' ("')
+            if ($paren -gt 0) { $office = $office.Substring(0, $paren) }
+            $office = $office.TrimEnd('.', ' ')
+            foreach ($part in $office.Split(',')) {
+                $fragment = $part.Trim()
+                # Five characters filters out noise without losing a short
+                # locality or a postcode; a bare number would be matched by the
+                # company-number rule above if it mattered.
+                if ($fragment.Length -ge 5) { $strings += $fragment }
+            }
+        }
+    }
+    # Both documents carry the same licensor details, so dedupe here rather than
+    # reporting "10 strings" for five.
+    return @($strings | Sort-Object -Unique)
+}
+
 Push-Location $ProjectRoot
 try {
     # --- The branch we came from, to return to. ------------------------------
@@ -86,15 +155,37 @@ try {
         # time this ran -- a test asserting the literal company number and street
         # name, in a file that is published.
         #
-        # So two sweeps. A generic pattern catches generically-shaped things; the
-        # literal strings have to be named somewhere, and the only safe somewhere
-        # is a file that stays in this repository. private-strings.txt is
-        # gitignored for that reason -- a published list of what must not be
-        # published would rather defeat the point.
+        # So two sweeps. A generic pattern catches generically-shaped things,
+        # which is cheap and needs no list. The literal strings are derived from
+        # the held-back documents themselves -- they are the authority for what
+        # the address is, and this repository always has them. private-strings.txt
+        # adds anything derivation cannot see, and is optional.
         Write-Step "Checking the tree for anything that should not be published"
         $leaks = @()
 
+        $derived = Get-DerivedPrivateStrings -SourceBranch $startBranch -Documents $excluded
+        if ($derived) {
+            Write-Note "$($derived.Count) string(s) derived from the held-back documents"
+        } else {
+            Write-Host "    Nothing could be derived from the held-back documents." -ForegroundColor Yellow
+            Write-Host "    If they no longer carry a company number and registered office," -ForegroundColor Yellow
+            Write-Host "    that is fine; if they do, the patterns in" -ForegroundColor Yellow
+            Write-Host "    Get-DerivedPrivateStrings have stopped matching and this sweep is" -ForegroundColor Yellow
+            Write-Host "    not doing its job." -ForegroundColor Yellow
+        }
+
+        $extra = @()
+        $stringsFile = Join-Path $Packaging 'private-strings.txt'
+        if (Test-Path $stringsFile) {
+            $extra = Get-Content $stringsFile |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and -not $_.StartsWith('#') }
+            if ($extra) { Write-Note "$($extra.Count) more from private-strings.txt" }
+        }
+
+        $private = @($derived + $extra) | Sort-Object -Unique
         $postcode = '\b[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}\b'
+
         foreach ($file in (& git ls-files)) {
             if (-not (Test-Path -LiteralPath $file)) { continue }
             $raw = Get-Content -LiteralPath $file -Raw -ErrorAction SilentlyContinue
@@ -102,33 +193,20 @@ try {
             foreach ($m in [regex]::Matches($raw, $postcode)) {
                 $leaks += "$file : $($m.Value)  (postcode-shaped)"
             }
-        }
-
-        $stringsFile = Join-Path $Packaging 'private-strings.txt'
-        if (Test-Path $stringsFile) {
-            $private = Get-Content $stringsFile |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { $_ -and -not $_.StartsWith('#') }
-            Write-Note "$($private.Count) literal string(s) from private-strings.txt"
-            foreach ($file in (& git ls-files)) {
-                if (-not (Test-Path -LiteralPath $file)) { continue }
-                $raw = Get-Content -LiteralPath $file -Raw -ErrorAction SilentlyContinue
-                if ($null -eq $raw) { continue }
-                foreach ($needle in $private) {
-                    if ($raw -like "*$needle*") { $leaks += "$file : contains a private string" }
-                }
+            foreach ($needle in $private) {
+                # Named in the message: a false positive is useless to diagnose
+                # otherwise, and the fragments are derived rather than secret to
+                # whoever is running this.
+                if ($raw -like "*$needle*") { $leaks += "$file : contains `"$needle`"" }
             }
-        } else {
-            Write-Host "    private-strings.txt is missing, so only the generic sweep ran." -ForegroundColor Yellow
-            Write-Host "    It is gitignored and does not survive a fresh clone -- see" -ForegroundColor Yellow
-            Write-Host "    BUSINESS-NOTES.md. Recreate it before relying on this check." -ForegroundColor Yellow
         }
 
         if ($leaks) {
             throw ("The tree about to be published contains:`n    " +
                    (($leaks | Sort-Object -Unique) -join "`n    ") +
                    "`nTake it out, or add the file to not-published.txt. If it is a false " +
-                   "positive, widen the check deliberately rather than deleting it.")
+                   "positive, narrow the derivation in Get-DerivedPrivateStrings deliberately " +
+                   "rather than deleting the check.")
         }
         Write-Note "nothing found"
 

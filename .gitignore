@@ -50,6 +50,8 @@ packaging/Output/
 # chat. Nothing in it belongs in the repository -- the register is the record.
 placeholders.txt
 
-# The literal strings publish.ps1 refuses to publish. Not published itself,
-# for what should be obvious reasons.
+# Optional extra strings publish.ps1 refuses to publish. It derives the
+# company number and registered office from the held-back documents itself,
+# so this file is usually absent -- but if one is ever needed it must not be
+# committable, for what should be obvious reasons.
 packaging/private-strings.txt
