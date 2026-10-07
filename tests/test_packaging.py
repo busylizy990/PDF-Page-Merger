@@ -152,11 +152,12 @@ class TestWhatIsNotPublished:
             "build.ps1 no longer checks whether the terms are present before "
             "rendering the licence page"
         )
-        assert "if ($certificate)" in guard and "throw" in guard, (
+        assert "if ($signing)" in guard and "throw" in guard, (
             "build.ps1 must refuse to sign a build whose licence page is a "
             "placeholder. Signing is what makes an installer distributable, so "
             "it is the only place the refusal belongs -- and with it gone, the "
-            "skips in this suite would let a lost document through to a customer."
+            "skips in this suite would let a lost document through to a customer. "
+            "Note $signing, not $certificate: see TestTheTwoSigningRoutes."
         )
 
     def test_the_installer_flags_exactly_the_unpublished_files(self):
@@ -171,6 +172,107 @@ class TestWhatIsNotPublished:
             f"kept out of the public repository are {sorted(expected)}. Any other "
             "use of skipifsourcedoesntexist hides a build that would have failed."
         )
+
+
+class TestTheTwoSigningRoutes:
+    """build.ps1 can sign with a local certificate (Set-AuthenticodeSignature,
+    no Windows SDK) or with Azure Artifact Signing (signtool plus Microsoft's
+    dlib, key in their HSM, no local certificate at all).
+
+    The second route is why these tests exist. Every gate in the script used to
+    ask "is $certificate set" as shorthand for "is this build being signed", and
+    on the Azure route that is never true -- so the placeholder scan, the
+    missing-document refusal and the EULA guard would all have passed an
+    Azure-signed build through while reporting success. That build is the one
+    that goes to a customer.
+    """
+
+    BUILD = PROJECT / "packaging" / "build.ps1"
+
+    def _text(self):
+        return self.BUILD.read_text(encoding="utf-8")
+
+    def test_no_gate_keys_off_the_certificate_object(self):
+        """The invariant, and the bug this change nearly shipped.
+
+        `if ($certificate)` is always false on the Azure route. Using it as a
+        gate is not a style problem; it silently disables the gate for one of
+        the two ways this project can produce a distributable build.
+        """
+        assert "if ($certificate)" not in self._text(), (
+            "a gate in build.ps1 tests the certificate object. The Azure route "
+            "has no certificate, so that gate does not run for Azure-signed "
+            "builds -- which are exactly the builds that reach customers. Ask "
+            "$signing instead; the certificate belongs only to the other route."
+        )
+
+    def test_signing_is_decided_once_for_both_routes(self):
+        text = self._text()
+        assert "$signing     = -not $SkipSign" in text, (
+            "$signing should be set from -SkipSign alone, so that it means "
+            "'this build is being signed' regardless of how"
+        )
+        assert "$azureRoute  = [bool]$AzureSigningAccount" in text
+
+    def test_the_routes_cannot_both_apply(self):
+        """Passing a thumbprint and an Azure account asks for two different
+        signing mechanisms. Picking one silently would sign with whichever the
+        code happened to check first."""
+        text = self._text()
+        assert "not both" in text and "different signing routes" in text, (
+            "build.ps1 should refuse a certificate and an Azure account together"
+        )
+
+    def test_both_artifacts_are_signed_on_both_routes(self):
+        """The ordering comment at the top of build.ps1 explains why: signing
+        only the installer leaves the programs inside it unsigned, so the first
+        thing a user runs after installing is unsigned. That has to hold for the
+        Azure route too, not just the one it was written for."""
+        text = self._text()
+        assert text.count("Invoke-SignToolSigning -Paths") == 2, (
+            "the Azure route must sign the programs and the installer, as the "
+            "certificate route does -- two calls, not one"
+        )
+        assert text.count("Invoke-Signing -Paths") == 2
+
+    def test_the_azure_route_uses_microsofts_timestamp_authority(self):
+        """Azure Artifact Signing requires its own timestamp authority; the
+        DigiCert default belongs to the certificate route. Without a timestamp
+        every copy ever shipped stops validating when the certificate expires.
+        """
+        text = self._text()
+        assert "timestamp.acs.microsoft.com" in text, (
+            "the Azure route needs Microsoft's timestamp authority"
+        )
+        assert "$PSBoundParameters.ContainsKey('TimestampUrl')" in text, (
+            "the Azure default must not override a -TimestampUrl the caller "
+            "actually passed"
+        )
+
+    def test_the_publisher_is_checked_against_the_signature(self):
+        """packaging/README.md says nothing can check AppPublisher against a
+        certificate that has not been bought. True before signing -- but after
+        signing the subject is there to compare, and a mismatch reaches the
+        customer as one name in the terms and another in the UAC prompt."""
+        text = self._text()
+        assert "function Assert-PublisherMatches" in text
+        assert "Assert-PublisherMatches -Path" in text, (
+            "the publisher check is defined but never called"
+        )
+        assert "$check.Status -eq 'Valid'" in text, (
+            "it must only throw on a Valid signature: a self-signed test "
+            "certificate reads as UnknownError and will not carry the company "
+            "name, and failing there would break the documented test workflow"
+        )
+
+    def test_the_metadata_file_is_cleaned_up(self):
+        """It names the signing account, and it is written next to nothing in
+        particular. A stray copy is the kind of file that gets committed."""
+        text = self._text()
+        assert "Remove-Item -LiteralPath $metadata" in text, (
+            "the signtool metadata file should be deleted after signing"
+        )
+        assert "finally {" in text
 
 
 class TestInstallerSources:

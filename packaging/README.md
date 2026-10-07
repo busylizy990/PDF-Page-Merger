@@ -135,19 +135,42 @@ Two things to check before committing to it:
   and confirm eligibility in the Azure portal before subscribing.** Onboarding
   either accepts the organisation or it does not, and asking costs nothing. Note
   the rename: search for "Azure Artifact Signing (formerly Trusted Signing)".
-- **It does not work with this script yet.** `build.ps1` signs with
-  `Set-AuthenticodeSignature`, which was a deliberate choice so that the Windows
-  SDK is not a build dependency. Azure needs `signtool.exe` with their dlib
-  provider, so `-CertificateThumbprint` does not reach it. Adding a second
-  signing path is perhaps forty lines, plus the Windows SDK to install. That cost
-  is the price of the saving; it is not large, but it is not nothing either.
+- **It needs the Windows SDK.** `build.ps1` supports this route, but it goes
+  through `signtool.exe` with Microsoft's dlib provider rather than
+  `Set-AuthenticodeSignature`, so the SDK has to be installed for it. The
+  certificate route still needs neither. Install the provider with
+  `nuget install Microsoft.Trusted.Signing.Client`, or drop it in
+  `.tools\TrustedSigning\`, which is checked first — the same arrangement as
+  Inno Setup, so the dependency travels with the project rather than with the
+  machine.
+
+### Signing with route 2
+
+```powershell
+az login   # DefaultAzureCredential is what the dlib authenticates with
+
+.\packaging\build.ps1 -AzureSigningAccount mysigningaccount `
+                       -AzureCertificateProfile myprofile `
+                       -AzureEndpoint https://weu.codesigning.azure.net/
+```
+
+The endpoint is regional and the wrong one fails to authenticate rather than
+redirecting. `signtool.exe` and the dlib are found automatically; override with
+`-SignToolPath` and `-TrustedSigningDlib`. The timestamp authority defaults to
+Microsoft's for this route, since theirs is the one the service requires, unless
+`-TimestampUrl` says otherwise.
+
+The two routes are mutually exclusive and the script refuses both at once.
 
 ### Which to choose
 
-If a first release is imminent and the budget is there, Route 1 signs today with
-no changes. Otherwise Route 2 is cheaper every year and removes the token, and
-the work it needs is work this project can absorb. Either way, confirm Route 2
-eligibility first — it is free to find out, and the answer decides it.
+Route 2 is cheaper every year and removes the token, at the cost of installing
+the Windows SDK. Route 1 needs nothing beyond Windows itself. Both sign the
+programs and the installer, and both are refused if a customer-facing document
+still carries a placeholder.
+
+Confirm route 2 eligibility before deciding — it is free to find out, and the
+answer may settle it for you.
 
 ### Standard (OV) versus Extended Validation (EV)
 

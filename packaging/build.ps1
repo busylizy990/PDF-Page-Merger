@@ -14,8 +14,15 @@
     programs inside it unsigned, so the first thing a user runs after
     installing is an unsigned executable.
 
-    Signing uses Set-AuthenticodeSignature, which is part of Windows -- the
-    Windows SDK and signtool.exe are not required.
+    There are two ways to sign. With a certificate in the Windows certificate
+    store or a .pfx, signing uses Set-AuthenticodeSignature, which is part of
+    Windows -- no Windows SDK, no signtool.exe. With Azure Artifact Signing
+    (formerly Trusted Signing) the key lives in Microsoft's HSM and there is no
+    local certificate, so signing goes through signtool.exe with their dlib
+    provider; that route needs the Windows SDK installed.
+
+    See "Getting a real certificate" in packaging\README.md for the choice
+    between them.
 
 .PARAMETER CertificateThumbprint
     Thumbprint of a code signing certificate in your certificate store. Find it
@@ -23,6 +30,29 @@
 
 .PARAMETER PfxPath
     Alternatively, a .pfx file. You will be prompted for its password.
+
+.PARAMETER AzureSigningAccount
+    Azure Artifact Signing: the signing account name. Passing this selects the
+    Azure route, and -AzureCertificateProfile and -AzureEndpoint come with it.
+    Authentication is whatever DefaultAzureCredential finds -- `az login` is the
+    usual answer.
+
+.PARAMETER AzureCertificateProfile
+    The certificate profile within that account. Its subject is what customers
+    see as the publisher, so it has to match AppPublisher in installer.iss.
+
+.PARAMETER AzureEndpoint
+    The regional endpoint, e.g. https://weu.codesigning.azure.net/ for West
+    Europe. Region-specific: the wrong one fails to authenticate rather than
+    redirecting.
+
+.PARAMETER TrustedSigningDlib
+    Path to Azure.CodeSigning.Dlib.dll. Found automatically in .tools\ or in the
+    NuGet package cache; pass it if it lives somewhere else.
+
+.PARAMETER SignToolPath
+    Path to signtool.exe. Found automatically in the Windows Kits; pass it to
+    override.
 
 .PARAMETER TimestampUrl
     Timestamp server. Signatures without a timestamp stop validating the day the
@@ -39,12 +69,22 @@
 
 .EXAMPLE
     .\packaging\build.ps1 -CertificateThumbprint A1B2C3D4E5F60718293A4B5C6D7E8F9012345678
+
+.EXAMPLE
+    .\packaging\build.ps1 -AzureSigningAccount mysigningaccount `
+                           -AzureCertificateProfile myprofile `
+                           -AzureEndpoint https://weu.codesigning.azure.net/
 #>
 
 [CmdletBinding()]
 param(
     [string]$CertificateThumbprint,
     [string]$PfxPath,
+    [string]$AzureSigningAccount,
+    [string]$AzureCertificateProfile,
+    [string]$AzureEndpoint,
+    [string]$TrustedSigningDlib,
+    [string]$SignToolPath,
     [string]$TimestampUrl = "http://timestamp.digicert.com",
     [switch]$SkipSign,
     [switch]$SkipInstaller,
@@ -132,6 +172,137 @@ function Get-SigningCertificate {
     throw "No code signing certificate found. Pass -CertificateThumbprint or -PfxPath, or use -SkipSign."
 }
 
+function Find-SignTool {
+    if ($SignToolPath) {
+        if (-not (Test-Path $SignToolPath)) { throw "No signtool.exe at $SignToolPath" }
+        return $SignToolPath
+    }
+    # Newest SDK first: the x64 build, which is what the dlib is built against.
+    $roots = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "$env:ProgramFiles\Windows Kits\10\bin"
+    )
+    $found = foreach ($root in $roots) {
+        if (Test-Path $root) {
+            Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending |
+                ForEach-Object { Join-Path $_.FullName 'x64\signtool.exe' } |
+                Where-Object { Test-Path $_ }
+        }
+    }
+    if ($found) { return @($found)[0] }
+    $onPath = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+    if ($onPath) { return $onPath }
+    return $null
+}
+
+function Find-TrustedSigningDlib {
+    if ($TrustedSigningDlib) {
+        if (-not (Test-Path $TrustedSigningDlib)) { throw "No dlib at $TrustedSigningDlib" }
+        return $TrustedSigningDlib
+    }
+    # .tools\ first, matching how Inno Setup is kept with the project rather than
+    # depending on a machine-wide install.
+    $candidates = @(
+        (Join-Path $Packaging '..\.tools\TrustedSigning\bin\x64\Azure.CodeSigning.Dlib.dll'),
+        (Join-Path $Packaging '..\.tools\TrustedSigning\Azure.CodeSigning.Dlib.dll')
+    )
+    foreach ($c in $candidates) { if (Test-Path $c) { return (Resolve-Path $c).Path } }
+
+    $nuget = Join-Path $env:USERPROFILE '.nuget\packages\microsoft.trusted.signing.client'
+    if (Test-Path $nuget) {
+        $newest = Get-ChildItem $nuget -Directory -ErrorAction SilentlyContinue |
+                  Sort-Object Name -Descending |
+                  ForEach-Object { Join-Path $_.FullName 'bin\x64\Azure.CodeSigning.Dlib.dll' } |
+                  Where-Object { Test-Path $_ }
+        if ($newest) { return @($newest)[0] }
+    }
+    return $null
+}
+
+function Invoke-SignToolSigning {
+    <#
+        Azure Artifact Signing. The key is in Microsoft's HSM, so there is no
+        local certificate and Set-AuthenticodeSignature cannot reach it --
+        signtool loads their dlib, which authenticates with
+        DefaultAzureCredential and asks the service to sign the digest.
+
+        The account and profile go in a JSON file rather than on the command
+        line, which is signtool's interface, not a choice. It is written per
+        call and deleted afterwards: it names the signing account, and a stray
+        copy in the project folder is the kind of thing that ends up committed.
+    #>
+    param([string[]]$Paths)
+
+    $metadata = Join-Path ([System.IO.Path]::GetTempPath()) "acs-$PID-$(Get-Random).json"
+    $body = [ordered]@{
+        Endpoint                = $AzureEndpoint
+        CodeSigningAccountName  = $AzureSigningAccount
+        CertificateProfileName  = $AzureCertificateProfile
+    }
+    # ASCII, not UTF8: PowerShell 5.1 writes a BOM with Out-File/Set-Content
+    # -Encoding utf8, and signtool's parser chokes on it.
+    $body | ConvertTo-Json | Set-Content -LiteralPath $metadata -Encoding ascii
+    try {
+        foreach ($path in $Paths) {
+            Invoke-Native $script:signtool @(
+                'sign', '/v',
+                '/fd', 'SHA256',
+                '/tr', $TimestampUrl,
+                '/td', 'SHA256',
+                '/dlib', $script:dlib,
+                '/dmdf', $metadata,
+                $path
+            )
+            if ($LASTEXITCODE -ne 0) {
+                throw ("signtool could not sign $(Split-Path -Leaf $path) (exit " +
+                       "$LASTEXITCODE). If it is an authentication failure, run " +
+                       "`az login`; if it is the endpoint, check the region.")
+            }
+            Write-Note "signed  $(Split-Path -Leaf $path)"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $metadata -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-PublisherMatches {
+    <#
+        The mismatch this catches reaches the customer as one name in the
+        licence terms and another in the UAC prompt. installer.iss's
+        AppPublisher and the spec's COMPANY are kept together by
+        TestTheTwoFilesAgree, but neither can be checked against a certificate
+        until there is one -- which is now, just after signing.
+
+        It only throws when the signature is Valid. A self-signed certificate
+        from New-TestCertificate.ps1 reads as UnknownError and will not carry
+        the company name, and demanding it there would break the test workflow
+        the packaging README documents -- the same trap that once made
+        Invoke-Signing reject self-signed certificates outright.
+    #>
+    param([string]$Path)
+
+    $check = Get-AuthenticodeSignature -FilePath $Path
+    $subject = $check.SignerCertificate.Subject
+    $iss = Get-Content (Join-Path $Packaging 'installer.iss') -Raw
+    $match = [regex]::Match($iss, '(?m)^#define\s+AppPublisher\s+"([^"]*)"')
+    if (-not $match.Success) { throw "installer.iss has no #define AppPublisher." }
+    $publisher = $match.Groups[1].Value
+
+    if ($subject -and $subject -like "*$publisher*") {
+        Write-Note "publisher  : matches AppPublisher"
+        return
+    }
+    $complaint = ("The signature names $subject, but installer.iss declares " +
+                  "AppPublisher `"$publisher`". A customer would read one name in " +
+                  "the terms and see another in the UAC prompt.")
+    if ($check.Status -eq 'Valid') { throw $complaint }
+    Write-Host "    $complaint" -ForegroundColor Yellow
+    Write-Host "    Not fatal because the signature is $($check.Status), which is what a" -ForegroundColor Yellow
+    Write-Host "    self-signed test certificate reads as. It would be fatal for a real one." -ForegroundColor Yellow
+}
+
 function Invoke-Signing {
     param([string[]]$Paths, $Certificate)
     foreach ($path in $Paths) {
@@ -183,8 +354,50 @@ if (-not $iscc -and -not $SkipInstaller) {
 }
 if ($iscc) { Write-Note "Inno Setup: $iscc" }
 
+# $signing is what the gates below key off -- the placeholder scan, the
+# missing-document refusal, both signing steps. $certificate is the X509 object
+# and exists only on the certificate route, because Azure Artifact Signing has no
+# local certificate at all. Conflating the two, as this script did while there
+# was only one route, would let an Azure-signed build past every gate that exists
+# to stop an unfinished build reaching a customer.
+$signing     = -not $SkipSign
+$azureRoute  = [bool]$AzureSigningAccount
 $certificate = $null
-if (-not $SkipSign) {
+$script:signtool = $null
+$script:dlib     = $null
+
+if ($signing -and $azureRoute) {
+    foreach ($pair in @(@('-AzureCertificateProfile', $AzureCertificateProfile),
+                        @('-AzureEndpoint', $AzureEndpoint))) {
+        if (-not $pair[1]) { throw "$($pair[0]) is required with -AzureSigningAccount." }
+    }
+    if ($CertificateThumbprint -or $PfxPath) {
+        throw ("Pass either -AzureSigningAccount or a local certificate, not both. " +
+               "They are different signing routes and only one can apply.")
+    }
+    $script:signtool = Find-SignTool
+    if (-not $script:signtool) {
+        throw ("signtool.exe not found. Azure Artifact Signing goes through it, so " +
+               "the Windows SDK is required for this route -- or pass -SignToolPath. " +
+               "The certificate route needs neither.")
+    }
+    $script:dlib = Find-TrustedSigningDlib
+    if (-not $script:dlib) {
+        throw ("Azure.CodeSigning.Dlib.dll not found. Install it with:  nuget install " +
+               "Microsoft.Trusted.Signing.Client  -- or pass -TrustedSigningDlib.")
+    }
+    # Microsoft's service requires its own timestamp authority; the DigiCert
+    # default is for the certificate route. Only overridden when the caller did
+    # not ask for a specific one.
+    if (-not $PSBoundParameters.ContainsKey('TimestampUrl')) {
+        $TimestampUrl = 'http://timestamp.acs.microsoft.com'
+    }
+    Write-Note "signing    : Azure Artifact Signing"
+    Write-Note "account    : $AzureSigningAccount / $AzureCertificateProfile"
+    Write-Note "signtool   : $script:signtool"
+    Write-Note "dlib       : $script:dlib"
+    Write-Note "timestamp  : $TimestampUrl"
+} elseif ($signing) {
     $certificate = Get-SigningCertificate
     Write-Note "certificate: $($certificate.Subject)"
     Write-Note "expires    : $($certificate.NotAfter)"
@@ -251,7 +464,7 @@ $eulaFile  = Join-Path $Packaging 'EULA.rtf'
 # distributable, and the document gate below already throws on a missing
 # document when a certificate is in play.
 if (-not (Test-Path $termsFile)) {
-    if ($certificate) {
+    if ($signing) {
         throw ("LICENCE-TERMS.md is missing, so there are no terms to put on the " +
                "installer's accept page. A signed build is a build going to " +
                "somebody; it cannot ship a placeholder licence.")
@@ -297,7 +510,7 @@ foreach ($doc in @($termsFile,
                    (Join-Path $ProjectRoot 'PRIVACY-NOTICE.md'),
                    (Join-Path $Packaging 'installer.iss'))) {
     if (-not (Test-Path $doc)) {
-        if ($certificate) { throw "$(Split-Path -Leaf $doc) is missing." }
+        if ($signing) { throw "$(Split-Path -Leaf $doc) is missing." }
         Write-Host "    $(Split-Path -Leaf $doc) is missing." -ForegroundColor Yellow
         continue
     }
@@ -310,7 +523,7 @@ foreach ($doc in @($termsFile,
     foreach ($item in $found) { $incomplete += "$(Split-Path -Leaf $doc): $item" }
 }
 if ($incomplete) {
-    if ($certificate) {
+    if ($signing) {
         throw ("The customer-facing documents are incomplete: $($incomplete -join '; '). " +
                "Fill them in before producing a signed build -- those are the copies a customer accepts and relies on.")
     }
@@ -338,9 +551,13 @@ foreach ($exe in @($gui, $cli)) {
 }
 Write-Note "built $DistApp"
 
-if ($certificate) {
+if ($signing) {
     Write-Step "Signing the programs"
-    Invoke-Signing -Paths @($gui, $cli) -Certificate $certificate
+    if ($azureRoute) {
+        Invoke-SignToolSigning -Paths @($gui, $cli)
+    } else {
+        Invoke-Signing -Paths @($gui, $cli) -Certificate $certificate
+    }
 }
 
 if ($SkipInstaller) {
@@ -357,9 +574,13 @@ $setup = Get-ChildItem (Join-Path $ProjectRoot 'dist\installer') -Filter '*Setup
          Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $setup) { throw "Inno Setup produced no installer." }
 
-if ($certificate) {
+if ($signing) {
     Write-Step "Signing the installer"
-    Invoke-Signing -Paths @($setup.FullName) -Certificate $certificate
+    if ($azureRoute) {
+        Invoke-SignToolSigning -Paths @($setup.FullName)
+    } else {
+        Invoke-Signing -Paths @($setup.FullName) -Certificate $certificate
+    }
 
     Write-Step "Checking the signature"
     $check = Get-AuthenticodeSignature -FilePath $setup.FullName
@@ -369,6 +590,7 @@ if ($certificate) {
     if ($check.Status -eq 'UnknownError') {
         Write-Host "    A self-signed certificate reads as UnknownError until it is trusted. That is expected." -ForegroundColor Yellow
     }
+    Assert-PublisherMatches -Path $setup.FullName
 }
 
 Write-Step "Done"
