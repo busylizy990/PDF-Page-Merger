@@ -1,0 +1,5 @@
+Copyright 1998-2026 The OpenSSL Authors. All rights reserved.
+
+Taken from the version resource of the libcrypto-3.dll and libssl-3.dll
+that this program distributes. OpenSSL 3.x is licensed under the Apache
+License 2.0, reproduced below.

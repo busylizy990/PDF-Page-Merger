@@ -1,0 +1,47 @@
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# This project's own interpreter (~136 MB) and any venv. Not committed: it is
+# rebuilt from requirements-build.txt, not version controlled. See
+# PROJECT-NOTES.md, "The build environment".
+.python/
+.venv/
+
+# Created on first use by the window; machine-specific, and travels with a copy
+# of the folder rather than with the source (see PROJECT-NOTES.md).
+settings.json
+
+# The folder workflow: input\ is a drop box and output\ is generated. Keep the
+# instructions file, ignore whatever the user puts beside it.
+input/*
+!input/READ ME - put PDFs here.txt
+output/
+
+# A real order.txt is job-specific; the committed example is order.txt.example.
+order.txt
+
+# Portable build tools: Inno Setup 6.7.3 lives here so the build does not depend
+# on a machine-wide install, and so it needs no administrator rights. Rebuild by
+# downloading the official installer and running it with /PORTABLE=1 -- see
+# PROJECT-NOTES.md, "The build environment".
+.tools/
+
+# Commercial reasoning, pricing and route-to-market thinking. Kept out of a
+# repository that may become public or be shown to someone. Engineering notes
+# live in PROJECT-NOTES.md, which IS committed. Note this only stops future
+# commits -- see the warning at the end of BUSINESS-NOTES.md about history.
+BUSINESS-NOTES.md
+
+# Installer build products (packaging\build.ps1)
+build/
+dist/
+packaging/Output/
+*.exe
+
+# Signing material - never commit keys or certificates
+*.pfx
+*.p12
+*.cer
+*.crt

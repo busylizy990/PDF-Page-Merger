@@ -1,0 +1,44 @@
+# order.txt  --  optional. COPY this file to "order.txt" to use it. Copy, not
+# rename: the installer build ships this example, so moving it breaks the build.
+#
+# When order.txt exists, the merger follows it exactly instead of just
+# grabbing everything in .\input alphabetically. One source per line,
+# top to bottom = the page order in the finished document.
+#
+# Sources can be PDFs, images (jpg, png, gif, bmp, tif, tiff, webp), Word
+# documents (docx, doc, docm, rtf, odt) or spreadsheets (xlsx, xlsm, xls, csv,
+# ods). Each image becomes one page; a multi-page TIFF becomes several. Word
+# documents and spreadsheets are converted to PDF automatically, and their page
+# ranges follow the converted document.
+#
+# Paths are looked up in .\input first, so a bare file name is enough.
+# Absolute paths (C:\Users\...\file.pdf) work too.
+#
+# Add page ranges after a colon to pick pages:
+#     1        a single page
+#     2-5      a range, inclusive
+#     7-       page 7 to the end
+#     -4       start through page 4
+#     all      every page (same as leaving it off)
+#     1-3,7,10-   combine with commas, no spaces
+#
+# Put ! in front to REMOVE pages instead of picking them:
+#     !7       every page except page 7
+#     !2-4     every page except 2, 3 and 4
+#     !1,3,5   drop those three, keep the rest
+# (~ means the same as !, e.g. ~7)
+#
+# A pick-list can also reorder and repeat pages (3,1,1). An exclusion always
+# keeps the surviving pages in their original order.
+#
+# Lines starting with # are ignored, blank lines are ignored.
+# The same file can appear as many times as you like.
+
+cover.jpg
+letter.docx
+budget.xlsx
+report.pdf:1-3,7
+scan.pdf:!2
+signed page.png
+appendix.pdf:5-
+C:\Users\you\Pictures\receipt.tiff:2

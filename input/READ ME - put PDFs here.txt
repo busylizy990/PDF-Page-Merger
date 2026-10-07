@@ -1,0 +1,30 @@
+Put the PDFs, images, Word documents and spreadsheets you want merged here.
+
+Images (jpg, png, gif, bmp, tif, tiff, webp) become pages just like PDF pages,
+and can be mixed in freely. A multi-page TIFF becomes several pages.
+
+Word documents (docx, doc, docm, rtf, odt) and spreadsheets (xlsx, xlsm, xls,
+csv, ods) are converted to PDF automatically using Microsoft Office, or
+LibreOffice if Office is unavailable, then merged in like anything else. The
+converted copies are temporary and are deleted once the merge finishes.
+
+Image pages are automatically given the same page size as the PDF pages they
+are merged with, so the finished document is one consistent size throughout.
+
+They are merged in natural name order, so 01_cover.jpg, 02_letter.docx,
+03_budget.xlsx, 04_appendix.pdf works well. page2.pdf correctly comes before
+page10.pdf.
+
+To remove pages rather than pick them, put ! in front: report.pdf:!7 keeps
+every page except page 7.
+
+For exact control (specific pages, custom order, files from elsewhere),
+rename order.txt.example to order.txt in the folder above and edit it.
+
+Then double-click Merge.bat. Result appears in ..\output\merged.pdf
+
+Prefer a window? Double-click "Merge GUI.bat" in the folder above instead, or
+drop files straight onto it. It can do everything described here, plus a
+contents page and page numbering, without touching this folder at all.
+
+See README.md for the full set of options.
