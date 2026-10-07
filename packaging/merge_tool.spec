@@ -16,11 +16,76 @@ installer steps happen in the right order:
 
 from pathlib import Path
 
+from PyInstaller.utils.win32.versioninfo import (
+    FixedFileInfo,
+    StringFileInfo,
+    StringStruct,
+    StringTable,
+    VarFileInfo,
+    VarStruct,
+    VSVersionInfo,
+)
+
 PROJECT = Path(SPECPATH).resolve().parent      # SPECPATH comes from PyInstaller
 ICON = str(PROJECT / "packaging" / "icon.ico")
 
 APP_NAME = "PDF Page Merger"
 VERSION = "1.0.0"
+
+# Must match AppPublisher in installer.iss, and the subject on any code-signing
+# certificate. TestTheTwoFilesAgree asserts the first of those; the second is
+# checked by Windows when the signature is verified.
+COMPANY = "Damreb Consultancy Ltd"
+COPYRIGHT = f"Copyright (c) 2026 {COMPANY}. All rights reserved."
+
+
+def version_resource(description: str, filename: str) -> VSVersionInfo:
+    """The Windows version resource for one executable.
+
+    Without this, Properties -> Details is blank on both programs: VERSION was
+    declared here from the first build and never passed to EXE(). The installer
+    looked fine because Inno Setup writes its own from AppPublisher and
+    AppVersion, which is why the metadata note in PROJECT-NOTES was accurate --
+    it was about Setup.exe, not about what Setup.exe installs.
+
+    It matters beyond tidiness: a firm's IT will inventory software by
+    FileVersion, and a blank one is a conversation nobody wants during
+    procurement. Signing does not supply it -- a signed build with no version
+    resource still shows nothing.
+    """
+    # Four parts, as the Win32 structure requires; the fourth is the build
+    # number, which this project does not use.
+    parts = tuple(int(n) for n in VERSION.split(".")) + (0,)
+    return VSVersionInfo(
+        ffi=FixedFileInfo(
+            filevers=parts,
+            prodvers=parts,
+            mask=0x3F,
+            flags=0x0,
+            OS=0x40004,      # VOS_NT_WINDOWS32
+            fileType=0x1,    # VFT_APP
+            subtype=0x0,
+            date=(0, 0),
+        ),
+        kids=[
+            # 040904B0: US English, Unicode -- and the 1200 in VarStruct below
+            # is the same code page in decimal. They have to agree or the
+            # resource is ignored.
+            StringFileInfo([
+                StringTable("040904B0", [
+                    StringStruct("CompanyName", COMPANY),
+                    StringStruct("FileDescription", description),
+                    StringStruct("FileVersion", VERSION),
+                    StringStruct("InternalName", filename),
+                    StringStruct("LegalCopyright", COPYRIGHT),
+                    StringStruct("OriginalFilename", filename),
+                    StringStruct("ProductName", APP_NAME),
+                    StringStruct("ProductVersion", VERSION),
+                ]),
+            ]),
+            VarFileInfo([VarStruct("Translation", [0x0409, 1200])]),
+        ],
+    )
 
 # Deliberately empty. Anything listed here is placed under _internal\ by
 # PyInstaller 6, which is no use for documentation a user is meant to find --
@@ -80,6 +145,7 @@ gui_exe = EXE(
     upx=False,                 # UPX-packed binaries get flagged by scanners
     console=False,             # windowed: no console flashing behind the GUI
     icon=ICON,
+    version=version_resource("PDF Page Merger", f"{APP_NAME}.exe"),
 )
 
 cli_exe = EXE(
@@ -93,6 +159,7 @@ cli_exe = EXE(
     upx=False,
     console=True,              # the command line needs its console
     icon=ICON,
+    version=version_resource("PDF Page Merger (command line)", "pdfmerge.exe"),
 )
 
 COLLECT(

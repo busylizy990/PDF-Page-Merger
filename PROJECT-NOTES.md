@@ -498,6 +498,32 @@ launches and titles its window; `README.md`, `order.txt.example` and the `input\
 instructions all ship in `_internal\`; and none of pymupdf, cv2, numpy,
 playwright, reportlab, openpyxl or docx is bundled.
 
+**The programs carried no version metadata until 7 October 2026.** `VERSION`
+was declared in `merge_tool.spec` from the first build and never passed to either
+`EXE()` call, so `Properties -> Details` was blank on both executables: no
+`ProductName`, no `CompanyName`, no `FileVersion`.
+
+Found by testing a real installation rather than by reading anything. The note
+below about embedded metadata is correct and always was -- it describes
+`Setup.exe`, which Inno Setup stamps from `AppPublisher` and `AppVersion`. That
+is precisely why the gap lasted: the installer looked finished, so what it
+installed went unchecked.
+
+It matters more than tidiness. A firm's IT inventories software by
+`FileVersion`, and signing does not supply it -- a signed build with no version
+resource still shows nothing. The fix builds a `VSVersionInfo` in the spec from
+the constants already there (PyInstaller 6 accepts the object directly, see
+`building/api.py:618`) rather than committing a separate resource file, which
+would have been a third copy of the version string to keep in step. `COMPANY`
+is declared in the spec and asserted equal to `AppPublisher`, the same
+declare-independently-and-test-agreement pattern the version and names already
+use.
+
+Two tests guard it. One checks the constants agree; the other checks they are
+actually *used*, because a test of the first kind would have passed throughout
+the week the defect existed. Verified by deleting the command line's resource:
+`assert 1 == 2`.
+
 **The installer compiles and `build.ps1` runs end to end — verified 2 October
 2026.** `ISCC.exe` compiled `installer.iss` without complaint, and
 `.\packaging\build.ps1 -SkipSign` carried out both stages in one run, producing

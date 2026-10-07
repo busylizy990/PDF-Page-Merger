@@ -491,6 +491,45 @@ class TestTheTwoFilesAgree:
             "Inno Setup and Windows version resources both expect that shape."
         )
 
+    def test_the_publisher_matches(self):
+        """The spec stamps CompanyName into both executables' version resource,
+        and installer.iss writes AppPublisher into the installer's. Disagree, and
+        a customer sees one name in the UAC prompt and another in Properties --
+        and only one of them can match a code-signing certificate's subject."""
+        iss, spec = self._define("AppPublisher"), self._spec_value("COMPANY")
+        assert iss == spec, (
+            f"installer.iss AppPublisher is {iss!r} but merge_tool.spec COMPANY "
+            f"is {spec!r}. Both are shown to the customer, and both have to "
+            "match the certificate."
+        )
+
+    def test_both_executables_get_a_version_resource(self):
+        """The defect this guards against: VERSION was declared in the spec from
+        the first build and never passed to EXE(), so both programs shipped with
+        Properties -> Details blank for a week. The installer looked fine, because
+        Inno Setup writes its own metadata -- which is exactly why nobody noticed.
+
+        A test comparing the constants would not have caught it. This one checks
+        the constants are actually *used*.
+        """
+        spec = SPEC.read_text(encoding="utf-8")
+        assert spec.count("version=version_resource(") == 2, (
+            "both EXE() calls must pass version=version_resource(...). Without "
+            "it the programs ship with no CompanyName, ProductName or "
+            "FileVersion, which is what a firm's IT inventories them by."
+        )
+        for field in ("CompanyName", "ProductName", "FileVersion", "ProductVersion"):
+            assert f'StringStruct("{field}"' in spec, (
+                f"the version resource does not set {field}"
+            )
+        # The resource must be built from the constants, not from literals that
+        # can drift away from them.
+        for constant in ("COMPANY", "APP_NAME", "VERSION", "COPYRIGHT"):
+            assert f", {constant})" in spec, (
+                f"the version resource should use {constant} rather than "
+                "repeating its value"
+            )
+
     def test_both_executables_the_installer_references_are_built(self):
         """GuiExe and CliExe are used for shortcuts and the uninstall icon, so a
         typo there produces an installer with dead shortcuts."""
