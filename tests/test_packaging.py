@@ -702,6 +702,65 @@ class TestPrivacyNotice:
         )
 
 
+class TestTheTesterNote:
+    """docs/tester-note.md goes to friends, family and anyone else trying the
+    thing informally. Unlike the customer note it is sent ad hoc, with no
+    release checklist in front of the sender and no build gate behind it, so it
+    has to be correct as it stands.
+    """
+
+    NOTE = PROJECT / "docs" / "tester-note.md"
+
+    def _text(self):
+        assert self.NOTE.is_file(), "docs/tester-note.md is missing"
+        return self.NOTE.read_text(encoding="utf-8")
+
+    def test_it_has_nothing_to_fill_in(self):
+        """The customer note's placeholders are caught by build.ps1 before a
+        signed build. Nothing stands behind this one, so an unfilled token would
+        simply go out."""
+        import re as _re
+
+        tokens = sorted(set(_re.findall(r"\[[A-Z][A-Z0-9 _]{2,}\]", self._text())))
+        assert not tokens, (
+            f"the tester note has placeholders: {tokens}. It is sent by hand "
+            "with no gate behind it, so it must not need filling in."
+        )
+
+    def test_it_warns_about_smart_app_control(self):
+        """This paragraph stops a tester permanently disabling a Windows
+        security feature to help with a favour -- Smart App Control cannot be
+        re-enabled without reinstalling Windows. It is the sort of long caveat
+        that gets trimmed for brevity later."""
+        text = self._text().lower()
+        assert "smart app control" in text, (
+            "the tester note must warn about Smart App Control, which blocks "
+            "unsigned installers outright on recent clean Windows 11 installs"
+        )
+        assert "reinstalling" in text, (
+            "it must say why not to turn it off: Windows will not let you turn "
+            "it back on without reinstalling the operating system"
+        )
+
+    def test_it_explains_the_unsigned_warning(self):
+        """A tester who was not told to expect "Publisher: Unknown" is a tester
+        who reasonably refuses, and that is a wasted favour rather than a
+        result."""
+        text = self._text()
+        assert "Unknown" in text and "certificate" in text, (
+            "it should say the publisher will read Unknown and why -- no "
+            "certificate has been bought yet"
+        )
+
+    def test_it_keeps_the_claim_that_nothing_is_uploaded(self):
+        """The same claim as clause 8 of the terms and section 2 of the privacy
+        notice. If the Software ever gains telemetry or an update check, this
+        has to change with them."""
+        text = self._text().lower()
+        assert "does not upload" in text
+        assert "no internet connection" in text
+
+
 class TestPlaceholderTokensDoNotCollide:
     """The customer note and the legal documents are filled in at different times
     by different means -- the note per customer, the legal documents once when the
