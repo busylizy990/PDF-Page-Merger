@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Page Merger — note for testers</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fbfbfa;
+    margin: 0;
+    padding: 2.5rem 1rem 4rem;
+  }
+  main { max-width: 38rem; margin: 0 auto; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 1.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.4rem 0 .6rem; }
+  h3 { font-size: 1.05rem; margin: 1.8rem 0 .5rem; }
+  p, li { margin: 0 0 .9rem; }
+  hr { border: 0; border-top: 1px solid #e0ded9; margin: 2.2rem 0; }
+  code {
+    font-family: Consolas, ui-monospace, monospace;
+    font-size: .9em;
+    background: #efeee9;
+    padding: .1em .35em;
+    border-radius: 3px;
+  }
+  ul { padding-left: 1.3rem; }
+  ul.tasks { list-style: none; padding-left: 0; }
+  ul.tasks li { position: relative; padding-left: 2rem; margin-bottom: 1rem; }
+  .box {
+    position: absolute; left: 0; top: .25em;
+    width: 1.05em; height: 1.05em;
+    border: 1.5px solid #9a968d; border-radius: 3px; background: #fff;
+  }
+  strong { font-weight: 600; }
+  @media print { body { background: #fff; padding: 0; } }
+</style>
+</head>
+<body>
+<main>
+<h1>PDF Page Merger — note for testers</h1>
+<p>Thanks for trying this. It merges PDFs, images, Word documents and spreadsheets into one PDF, in an order you control, optionally with a contents page and page numbering.</p>
+<p>It should take about ten minutes to try properly. There is a checklist at the end and anything you notice is useful, including &quot;this bit was confusing&quot;.</p>
+<hr>
+<h2>Windows will warn you, and that is expected</h2>
+<p>When you run the installer you will get a prompt saying <strong>&quot;Publisher: Unknown&quot;</strong>.</p>
+<p>That is not a problem with the file. Software is normally signed with a certificate bought from a certificate authority, which is what makes Windows show a company name instead of &quot;Unknown&quot;. One has not been bought yet, so Windows has nothing to show you.</p>
+<p>Say yes to the prompt. If you would rather not, that is a completely reasonable instinct and you should say so instead — it is better feedback than installing reluctantly.</p>
+<p><strong>One exception. Stop if you cannot get past it.</strong> If your PC is a fairly new Windows 11 machine, it may have <strong>Smart App Control</strong> turned on, which refuses unsigned programs outright with no &quot;run anyway&quot; option.</p>
+<p>Do not turn Smart App Control off to get this working. Windows will not let you turn it back on afterwards without reinstalling the whole operating system, and that is far too high a price. Just say it blocked you — that is genuinely useful to know.</p>
+<h2>Installing</h2>
+<p>Run the installer from wherever you were given it. If you were sent a USB stick, running it straight from the stick is fine.</p>
+<p>It will offer to install <strong>for everyone on this PC</strong> or <strong>just for me</strong>. Either is fine. &quot;Just for me&quot; needs no administrator password, so choose that if you do not have one.</p>
+<p>You need 64-bit Windows 10 or 11. Nothing else — Python and everything it needs is included.</p>
+<p>To merge <strong>Word documents or spreadsheets</strong> you need Microsoft Office or LibreOffice already installed. PDFs and images work without either.</p>
+<h2>Using it</h2>
+<p>A <strong>PDF Page Merger</strong> entry appears in your Start Menu, and on the desktop if you asked for the shortcut.</p>
+<p><strong>Drag files onto the window</strong>, drag them into the order you want, and press Merge. That is the whole idea. You do not need to put files in any particular folder first.</p>
+<p>The merged PDF goes into a <code>Documents\PDF Page Merger</code> folder, and the window tells you the exact path when it finishes.</p>
+<p><code>README.md</code> in the installation folder is the full guide, if you want page ranges, contents pages or page numbering.</p>
+<h2>Nothing leaves your computer</h2>
+<p>The program does not upload your documents, does not read their text, has no usage tracking, and works with no internet connection at all. Word and Excel conversion uses the copy of Office or LibreOffice already on your own machine.</p>
+<p>This matters because the point of the thing is handling documents you would not want going anywhere.</p>
+<h2>What would help most</h2>
+<ul class="tasks">
+<li><span class="box"></span><strong>Drag a folder of several PDFs onto the window.</strong> Did they end up in the order you expected? If not, what order did you expect?</li>
+<li><span class="box"></span><strong>Merge without choosing an output folder.</strong> Did it tell you clearly where the file went, and was that somewhere sensible?</li>
+<li><span class="box"></span><strong>A Word document</strong>, if you have Office or LibreOffice. This is the part most likely to behave differently on different PCs.</li>
+<li><span class="box"></span><strong>Uninstall it</strong> — Settings → Apps → Installed apps → PDF Page Merger, or the Uninstall entry in the Start Menu. Did it disappear from the Start Menu and the desktop?</li>
+</ul>
+<h2>Sending feedback</h2>
+<p>Anything at all is useful, but these especially:</p>
+<ul>
+<li>Anything that <strong>crashed</strong>, or any error message — the exact wording if you can</li>
+<li>Anything you expected to work and it did not</li>
+<li>Anything <strong>confusing</strong>, even slightly. If you had to guess what a button did,</li>
+<p>that is a fault in the program, not in you</p>
+<li>How long the whole thing took, and whether you would have given up anywhere</li>
+</ul>
+<p>If something went wrong, it helps to know <strong>which version</strong> you had. Right-click the installer or <code>PDF Page Merger.exe</code>, choose <strong>Properties → Details</strong>, and the version is listed there.</p>
+<p>Uninstalling leaves any PDFs you produced exactly where they are, so you will not lose anything by removing it.</p>
+<p><strong>contact@damreb.co.uk</strong></p>
+</main>
+</body>
+</html>

@@ -727,6 +727,54 @@ class TestTheTesterNote:
             "with no gate behind it, so it must not need filling in."
         )
 
+    def test_the_html_matches_the_markdown(self):
+        """The page is what actually gets handed over -- on a USB stick, usually
+        -- so a stale render reaches a tester while the repository looks right.
+
+        Compared in memory rather than by re-running the script and restoring
+        the file, as the EULA test does: there is no reason for a test to write
+        to the working tree when the renderer can simply be imported, and a test
+        that restores a file it overwrote is one interrupted run away from
+        leaving the wrong content on disk.
+        """
+        import importlib.util
+
+        script = PROJECT / "packaging" / "make_tester_html.py"
+        assert script.is_file(), "packaging/make_tester_html.py is missing"
+        page = PROJECT / "docs" / "tester-note.html"
+        assert page.is_file(), (
+            "docs/tester-note.html is missing. Run "
+            "packaging/make_tester_html.py and commit it -- the committed page "
+            "is the one that gets copied to a stick."
+        )
+
+        spec = importlib.util.spec_from_file_location("make_tester_html", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        expected = module.render(self._text())
+        actual = page.read_text(encoding="utf-8")
+        assert actual == expected, (
+            "docs/tester-note.html does not match what tester-note.md renders "
+            "to. Re-run packaging/make_tester_html.py and commit the result -- "
+            "or someone edited the HTML by hand, in which case the note of "
+            "record and the note a tester reads have diverged."
+        )
+
+    def test_the_html_needs_nothing_external(self):
+        """It is opened from a USB stick, on someone else's machine, possibly
+        with no network. A linked stylesheet or a web font would render the page
+        wrong in exactly the situation it exists for."""
+        page = (PROJECT / "docs" / "tester-note.html")
+        if not page.is_file():
+            pytest.skip("covered by test_the_html_matches_the_markdown")
+        text = page.read_text(encoding="utf-8")
+        for pattern in ("<link", "<script", "http://", "https://", "@import"):
+            assert pattern not in text, (
+                f"the tester page references {pattern!r}. It has to render from "
+                "removable media with no network, so everything must be inline."
+            )
+
     def test_it_warns_about_smart_app_control(self):
         """This paragraph stops a tester permanently disabling a Windows
         security feature to help with a favour -- Smart App Control cannot be
