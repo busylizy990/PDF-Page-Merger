@@ -586,7 +586,7 @@ class MergerWindow(ttk.Frame):
         ttk.Label(
             box,
             text="Blank = All Pages      Custom Pages e.g. 1-3,7 = Pages 1-3 & 7"
-                 "      !4 = All pages except page 4",
+                 "      7- = Page 7 to the end      !4 = All pages except page 4",
             foreground="#666666",
         ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
@@ -878,8 +878,16 @@ class MergerWindow(ttk.Frame):
         if spec and not merge.RANGE_RE.match(spec):
             messagebox.showerror(
                 "Not a page range",
+                # Same wording as the hint under the field, one per line: a
+                # dialog has the vertical room the hint does not, and somebody
+                # reading this has already got it wrong once.
                 f"{spec!r} is not a page range.\n\n"
-                "Examples:  1    2-5    7-    1-3,7    !4  (all except page 4)",
+                "Blank = All Pages\n"
+                "1 = Page 1\n"
+                "2-5 = Pages 2 to 5\n"
+                "1-3,7 = Pages 1-3 & 7\n"
+                "7- = Page 7 to the end\n"
+                "!4 = All pages except page 4",
                 parent=self,
             )
             return
