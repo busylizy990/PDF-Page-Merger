@@ -572,17 +572,23 @@ class MergerWindow(ttk.Frame):
 
         picker = ttk.Frame(box)
         picker.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ttk.Label(picker, text="Pages for the selected file:").pack(side="left")
+        ttk.Label(picker, text="Pages to merge from the selected file:").pack(side="left")
         self.spec_var = tk.StringVar()
         self.spec_entry = ttk.Entry(picker, textvariable=self.spec_var, width=22)
         self.spec_entry.pack(side="left", padx=(6, 6))
         self.spec_entry.bind("<Return>", lambda _e: self.apply_spec())
         ttk.Button(picker, text="Apply", command=self.apply_spec).pack(side="left")
+
+        # The hint sits on its own line rather than after the Apply button. On one
+        # line the row needs 884px, and the window's minimum is 760 -- so the end
+        # of the hint was clipped, losing the "!4" example, which is the least
+        # guessable of the three.
         ttk.Label(
-            picker,
-            text="blank = all   1-3,7 = those pages   !4 = all except page 4",
+            box,
+            text="Blank = All Pages      Custom Pages e.g. 1-3,7 = Pages 1-3 & 7"
+                 "      !4 = All pages except page 4",
             foreground="#666666",
-        ).pack(side="left", padx=(10, 0))
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
     def _build_options(self) -> None:
         box = ttk.LabelFrame(self, text="Finishing", padding=8)
